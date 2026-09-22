@@ -1,0 +1,327 @@
+{
+  "info": {
+    "name": "PlantSync - Contratos de API (ThingSpeak)",
+    "description": "Colecao de testes de contrato da camada de ingestao do projeto PlantSync.\n\nProjeto Integrador ADS 4o Periodo - Equipe PlantSync.\n\nCanal publico: https://thingspeak.mathworks.com/channels/3493443\n\nCONFIGURACAO: defina WRITE_API_KEY e READ_API_KEY como variaveis de ambiente antes de executar. Nenhuma chave e versionada nesta colecao (RNF02).\n\nMAPEAMENTO DE CAMPOS\n  field1 = temperatura_c      field5 = luminosidade_lux\n  field2 = umidade_ar_pct     field6 = alertas_bitmask\n  field3 = rssi_dbm           field7 = risco_0_100\n  field4 = agua_livre_pct",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://api.thingspeak.com"
+    },
+    {
+      "key": "CHANNEL_ID",
+      "value": "3493443"
+    },
+    {
+      "key": "WRITE_API_KEY",
+      "value": ""
+    },
+    {
+      "key": "READ_API_KEY",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Ingestao: publicar telemetria valida",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Retorna entry_id diferente de zero', function () {",
+              "    var corpo = pm.response.text().trim();",
+              "    pm.expect(corpo).to.not.equal('0');",
+              "    pm.expect(parseInt(corpo, 10)).to.be.above(0);",
+              "});",
+              "",
+              "pm.test('Responde em menos de 3 segundos', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(3000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "User-Agent",
+            "value": "FrioVale-Postman/1.0"
+          }
+        ],
+        "url": {
+          "raw": "{{BASE_URL}}/update?api_key={{WRITE_API_KEY}}&field1=2.4&field2=90.1&field3=-58&field4=41.7&field5=5&field6=0&field7=0",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "update"
+          ],
+          "query": [
+            {
+              "key": "api_key",
+              "value": "{{WRITE_API_KEY}}"
+            },
+            {
+              "key": "field1",
+              "value": "2.4",
+              "description": "temperatura_c"
+            },
+            {
+              "key": "field2",
+              "value": "90.1",
+              "description": "umidade_ar_pct"
+            },
+            {
+              "key": "field3",
+              "value": "-58",
+              "description": "rssi_dbm"
+            },
+            {
+              "key": "field4",
+              "value": "41.7",
+              "description": "agua_livre_pct"
+            },
+            {
+              "key": "field5",
+              "value": "5",
+              "description": "luminosidade_lux"
+            },
+            {
+              "key": "field6",
+              "value": "0",
+              "description": "alertas_bitmask"
+            },
+            {
+              "key": "field7",
+              "value": "0",
+              "description": "risco_0_100"
+            }
+          ]
+        },
+        "description": "Cenario feliz: amostra dentro de todas as faixas seguras. Deve retornar um entry_id incremental."
+      }
+    },
+    {
+      "name": "02 - Ingestao: amostra em alerta termico",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Amostra em alerta foi aceita e persistida', function () {",
+              "    pm.expect(pm.response.text().trim()).to.not.equal('0');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/update?api_key={{WRITE_API_KEY}}&field1=7.8&field2=78.3&field3=-81&field4=72.5&field5=640&field6=25&field7=68",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "update"
+          ],
+          "query": [
+            {
+              "key": "api_key",
+              "value": "{{WRITE_API_KEY}}"
+            },
+            {
+              "key": "field1",
+              "value": "7.8",
+              "description": "temperatura acima do teto de 4 C"
+            },
+            {
+              "key": "field2",
+              "value": "78.3",
+              "description": "UR abaixo da faixa ideal"
+            },
+            {
+              "key": "field3",
+              "value": "-81",
+              "description": "enlace degradado"
+            },
+            {
+              "key": "field4",
+              "value": "72.5",
+              "description": "agua livre critica"
+            },
+            {
+              "key": "field5",
+              "value": "640",
+              "description": "porta aberta"
+            },
+            {
+              "key": "field6",
+              "value": "25",
+              "description": "bitmask 1+8+16 = temp alta + agua + porta"
+            },
+            {
+              "key": "field7",
+              "value": "68",
+              "description": "risco elevado"
+            }
+          ]
+        },
+        "description": "Cenario de quebra da cadeia do frio com tres alertas simultaneos. Valida que o bitmask combinado trafega corretamente."
+      }
+    },
+    {
+      "name": "03 - Seguranca: rejeitar chave invalida",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Requisicao sem credencial valida NAO persiste dado', function () {",
+              "    pm.expect(pm.response.text().trim()).to.equal('0');",
+              "});",
+              "",
+              "pm.test('Nenhum entry_id foi gerado', function () {",
+              "    pm.expect(parseInt(pm.response.text().trim(), 10)).to.equal(0);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/update?api_key=CHAVE_INVALIDA_PARA_TESTE&field1=2.0",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "update"
+          ],
+          "query": [
+            {
+              "key": "api_key",
+              "value": "CHAVE_INVALIDA_PARA_TESTE"
+            },
+            {
+              "key": "field1",
+              "value": "2.0"
+            }
+          ]
+        },
+        "description": "Teste negativo de controle de acesso: a API deve responder 0 (nenhuma gravacao) quando a Write API Key nao confere."
+      }
+    },
+    {
+      "name": "04 - Leitura: ultimas 100 amostras do canal",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Contrato do canal preservado', function () {",
+              "    pm.expect(json).to.have.property('channel');",
+              "    pm.expect(json).to.have.property('feeds');",
+              "    pm.expect(json.feeds).to.be.an('array');",
+              "});",
+              "",
+              "pm.test('Cada leitura traz timestamp e temperatura', function () {",
+              "    if (json.feeds.length === 0) { pm.expect.fail('Canal vazio'); }",
+              "    var amostra = json.feeds[json.feeds.length - 1];",
+              "    pm.expect(amostra).to.have.property('created_at');",
+              "    pm.expect(amostra).to.have.property('field1');",
+              "});",
+              "",
+              "pm.test('Temperatura dentro dos limites fisicos do sensor', function () {",
+              "    json.feeds.forEach(function (f) {",
+              "        if (f.field1 !== null) {",
+              "            var t = parseFloat(f.field1);",
+              "            pm.expect(t).to.be.within(-40, 80);",
+              "        }",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/channels/{{CHANNEL_ID}}/feeds.json?api_key={{READ_API_KEY}}&results=100",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "channels",
+            "{{CHANNEL_ID}}",
+            "feeds.json"
+          ],
+          "query": [
+            {
+              "key": "api_key",
+              "value": "{{READ_API_KEY}}"
+            },
+            {
+              "key": "results",
+              "value": "100"
+            }
+          ]
+        },
+        "description": "Valida o contrato de leitura consumido pela camada analitica em Python."
+      }
+    },
+    {
+      "name": "05 - Exportacao CSV para a camada de Data Science",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/channels/{{CHANNEL_ID}}/feeds.csv?api_key={{READ_API_KEY}}&results=8000",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "channels",
+            "{{CHANNEL_ID}}",
+            "feeds.csv"
+          ],
+          "query": [
+            {
+              "key": "api_key",
+              "value": "{{READ_API_KEY}}"
+            },
+            {
+              "key": "results",
+              "value": "8000"
+            }
+          ]
+        },
+        "description": "Baixa o historico completo em CSV. Salve como analytics/data/feeds.csv e rode:\n\n    python eda_friovale.py --csv data/feeds.csv"
+      }
+    }
+  ]
+}
