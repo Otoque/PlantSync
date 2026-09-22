@@ -7,7 +7,7 @@ Documento de acompanhamento — Checkpoint 01
 Curso Superior de Tecnologia em Análise e Desenvolvimento de Sistemas — 4.º Período
 Unidade Curricular Focal Integradora: Internet das Coisas
 
-Petrolina, Pernambuco — Setembro de 2026
+Recife, Pernambuco — Setembro de 2026
 
 > A versão formatada para impressão e geração do PDF da entrega encontra-se em
 > [`CHECKPOINT-01.html`](CHECKPOINT-01.html).
