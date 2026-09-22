@@ -1,0 +1,44 @@
+# ===========================================================================
+#  RNF02 - Nenhuma credencial entra no repositorio publico.
+# ===========================================================================
+credentials.h
+!credentials.h.example
+secrets.h
+*.secrets.h
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Ambiente Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Dados brutos exportados do ThingSpeak (podem conter a Read API Key na URL)
+analytics/data/*.csv
+analytics/data/*.json
+!analytics/data/.gitkeep
+
+# Saidas geradas pelo pipeline - reproduziveis, nao versionadas
+analytics/outputs/*.png
+analytics/outputs/*.csv
+analytics/outputs/*.txt
+!analytics/outputs/.gitkeep
+
+# Build do Arduino / PlatformIO
+.pio/
+build/
+*.bin
+*.elf
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
