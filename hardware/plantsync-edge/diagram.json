@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "author": "Equipe PlantSync - PI ADS 4o Periodo",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c3-devkitm-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht",
+      "top": -130,
+      "left": 210,
+      "attrs": { "temperature": "2.4", "humidity": "90" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rpull",
+      "top": -60,
+      "left": 150,
+      "attrs": { "value": "10000" }
+    },
+    {
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr",
+      "top": 40,
+      "left": 215,
+      "attrs": { "lux": "10" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "umid",
+      "top": 190,
+      "left": 205,
+      "attrs": { "value": "3200" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -120,
+      "left": -130,
+      "attrs": { "color": "red", "label": "ALERTA" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "rled",
+      "top": -50,
+      "left": -140,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "dht:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "dht:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "dht:SDA", "esp:4", "green", [ "v0" ] ],
+
+    [ "rpull:1", "esp:4", "green", [ "v0" ] ],
+    [ "rpull:2", "esp:3V3", "red", [ "v0" ] ],
+
+    [ "ldr:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "ldr:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "ldr:AO", "esp:0", "blue", [ "v0" ] ],
+
+    [ "umid:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "umid:GND", "esp:GND.2", "black", [ "v0" ] ],
+    [ "umid:SIG", "esp:1", "orange", [ "v0" ] ],
+
+    [ "esp:8", "rled:1", "gold", [ "h0" ] ],
+    [ "rled:2", "led1:A", "gold", [ "v0" ] ],
+    [ "led1:C", "esp:GND.1", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
