@@ -19,10 +19,10 @@ Petrolina, Pernambuco — Setembro de 2026
 ### 1.1 Composição da equipe
 
 A equipe é composta por cinco integrantes, organizados em três frentes técnicas conforme
-apresentado na Tabela 1. A distribuição buscou alinhar as competências desenvolvidas nas
+apresentado no Quadro 1. A distribuição buscou alinhar as competências desenvolvidas nas
 unidades curriculares do período às camadas da arquitetura proposta.
 
-Tabela 1 – Composição da equipe e atribuições técnicas
+Quadro 1 – Composição da equipe e atribuições técnicas
 
 | Integrante | Função técnica | Atribuição no período |
 |---|---|---|
@@ -120,7 +120,29 @@ parcialmente concluído e `[ ]` para item não iniciado.
   foi conduzida até a presente data por canal de mensagens e divisão informal de frentes.
   A abertura de quadro formal constitui meta para o próximo checkpoint.
 
-### 2.6 Estágio global da equipe
+### 2.6 Consolidação quantitativa
+
+Tabela 1 – Consolidação quantitativa do status por frente
+
+| Frente | Concluído | Parcial | Não iniciado | Total |
+|---|:---:|:---:|:---:|:---:|
+| IoT e camada de borda | 3 | 1 | 0 | 4 |
+| Integração com nuvem | 1 | 1 | 0 | 2 |
+| Ciência de dados | 0 | 1 | 1 | 2 |
+| Segurança e qualidade | 1 | 1 | 0 | 2 |
+| Gestão e repositório | 1 | 0 | 1 | 2 |
+| **Total** | **6** | **4** | **2** | **12** |
+| **Participação relativa** | **50,0 %** | **33,3 %** | **16,7 %** | **100 %** |
+
+Fonte: elaborado pelos autores (2026).
+
+Atribuindo-se peso integral aos itens concluídos e peso parcial de cinquenta por cento
+aos itens em andamento, obtém-se índice de progresso de 66,7 % sobre o conjunto de doze
+itens avaliados. A concentração dos itens não iniciados nas frentes de ciência de dados e
+de gestão é coerente com o estágio declarado na Seção 2.7, uma vez que ambas dependem de
+volume de telemetria e de consolidação arquitetural ainda em curso.
+
+### 2.7 Estágio global da equipe
 
 ```
 (  ) Planejamento e Arquitetura
@@ -184,7 +206,7 @@ prévia ao embarque ou redirecionamento ao mercado interno.
 
 ### 4.1 Entregas compreendidas no escopo
 
-Tabela 2 – Entregas obrigatórias do período
+Quadro 3 – Entregas compreendidas no escopo do período
 
 | Item | Descrição |
 |---|---|
@@ -198,7 +220,7 @@ Fonte: elaborado pelos autores (2026).
 
 ### 4.2 Itens excluídos do escopo
 
-Tabela 3 – Delimitações negativas e respectivas justificativas
+Quadro 4 – Itens excluídos do escopo e respectivas justificativas
 
 | Item excluído | Justificativa |
 |---|---|
@@ -337,7 +359,7 @@ sensor opera com alimentação cabeada e transmite uma amostra a cada vinte segu
 no qual o ganho de eficiência associado ao MQTT não compensa a necessidade de manutenção
 de um intermediário de mensagens próprio. A migração para MQTT passará a ser justificável
 quando o projeto evoluir para operação por bateria com rádio de baixo consumo, cenário
-expressamente excluído do escopo do presente período, conforme a Tabela 3.
+expressamente excluído do escopo do presente período, conforme o Quadro 4.
 
 ---
 
@@ -345,7 +367,7 @@ expressamente excluído do escopo do presente período, conforme a Tabela 3.
 
 ### 7.1 Repositórios da equipe
 
-Tabela 4 – Repositórios do projeto e respectivos conteúdos
+Quadro 7 – Repositórios do projeto e respectivos conteúdos
 
 | Repositório | Natureza | Conteúdo comprobatório |
 |---|---|---|
@@ -450,7 +472,7 @@ constatação sido incorporada à documentação de montagem.
 **8.3.3 Dependência de alimentação cabeada.** O emprego contínuo de conectividade sem fio
 e de requisições HTTP inviabiliza a operação prolongada por bateria, condição que
 atualmente vincula o nó sensor a fonte de alimentação externa. Trata-se de limitação
-assumida e declarada fora do escopo do período, conforme a Tabela 3, ficando a avaliação
+assumida e declarada fora do escopo do período, conforme o Quadro 4, ficando a avaliação
 de ciclos de suspensão profunda e de rádios de baixo consumo registrada como evolução
 arquitetural para versões futuras.
 
