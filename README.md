@@ -52,7 +52,7 @@ da qual decorre a recomendação operacional sobre o lote.
 
 ```
 PlantSync/
-├── firmware/plantsync-edge/    Módulo de borda (ESP32-C3)
+├── hardware/plantsync-edge/    Módulo de borda (ESP32-C3)
 │   ├── main.ino                Firmware v2 — 3 sensores, Fail-Fast, JSON
 │   ├── diagram.json            Circuito para o simulador Wokwi
 │   ├── credentials.h.example   Modelo de credenciais (credentials.h é ignorado)
@@ -94,7 +94,7 @@ Canal público no ThingSpeak: **[3493443](https://thingspeak.mathworks.com/chann
 ### Firmware — placa real
 
 1. Arduino IDE com suporte à placa **ESP32-C3** instalado.
-2. Instale as bibliotecas de `firmware/plantsync-edge/libraries.txt`.
+2. Instale as bibliotecas de `hardware/plantsync-edge/libraries.txt`.
 3. Copie `credentials.h.example` para `credentials.h` e preencha SSID, senha e a
    Write API Key do canal.
 4. Compile e grave.
