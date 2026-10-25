@@ -7,10 +7,14 @@ ficar leve. Se um limiar mudar aqui, mude tambem no pipeline analitico.
 
 Cada leitura e um dicionario com as chaves:
     data_hora (datetime), temperatura_c, umidade_pct, luminosidade_lux
+
+Atencao aos nomes: na "faixa", temp_min_c e temp_max_c sao os LIMITES seguros
+da fruta; no resultado da analise, sao a menor e a maior temperatura MEDIDAS.
+Os nomes seguem o contrato da API (docs/api-contrato.md).
 """
 
-# Faixa fisica do sensor: fora dela a leitura e defeito, nao fenomeno
-# (mesmo criterio Fail-Fast do firmware e do pipeline analitico).
+# Faixa fisica do sensor: fora dela a leitura e defeito, nao fenomeno.
+# O firmware e o pipeline analitico tambem descartam esses valores.
 TEMP_FISICA_MIN = -40.0
 TEMP_FISICA_MAX = 80.0
 
@@ -37,6 +41,9 @@ ACOES_CURTAS = {
     "LARANJA": "inspecionar antes do embarque",
     "VERMELHO": "redirecionar para mercado interno ou processamento",
 }
+
+# Niveis que geram alerta. Quanto maior o numero, mais grave.
+GRAVIDADE = {"AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
 
 
 def temperatura_valida(temperatura):
@@ -131,6 +138,32 @@ def limpar_leituras(leituras):
     return limpas
 
 
+def analise_sem_dados():
+    """Resultado de um lote que ainda nao recebeu nenhuma leitura."""
+    return {
+        "amostras": 0,
+        "amostras_fora_faixa": 0,
+        "primeira_leitura": None,
+        "ultima_leitura": None,
+        "temp_min_c": None,
+        "temp_max_c": None,
+        "temp_media_c": None,
+        "graus_hora": 0.0,
+        "nivel": "SEM_DADOS",
+        "recomendacao": RECOMENDACOES["SEM_DADOS"],
+        "eventos_porta": [],
+    }
+
+
+def contar_fora_da_faixa(temperaturas, faixa):
+    """Quantas temperaturas ficaram fora da faixa segura (so temperatura)."""
+    quantidade = 0
+    for temperatura in temperaturas:
+        if fora_da_faixa(temperatura, faixa["temp_min_c"], faixa["temp_max_c"]):
+            quantidade += 1
+    return quantidade
+
+
 def analisar_lote(leituras, faixa):
     """
     Monta a analise completa de um lote.
@@ -139,34 +172,19 @@ def analisar_lote(leituras, faixa):
     umidade_min_pct e umidade_max_pct da fruta do lote.
     """
     leituras = limpar_leituras(leituras)
-
     if not leituras:
-        return {
-            "amostras": 0,
-            "amostras_fora_faixa": 0,
-            "primeira_leitura": None,
-            "ultima_leitura": None,
-            "temp_min_c": None,
-            "temp_max_c": None,
-            "temp_media_c": None,
-            "graus_hora": 0.0,
-            "nivel": "SEM_DADOS",
-            "recomendacao": RECOMENDACOES["SEM_DADOS"],
-            "eventos_porta": [],
-        }
+        return analise_sem_dados()
 
-    temperaturas = [leitura["temperatura_c"] for leitura in leituras]
-    fora_faixa = 0
-    for temperatura in temperaturas:
-        if fora_da_faixa(temperatura, faixa["temp_min_c"], faixa["temp_max_c"]):
-            fora_faixa += 1
+    temperaturas = []
+    for leitura in leituras:
+        temperaturas.append(leitura["temperatura_c"])
 
     graus_hora = calcular_graus_hora(leituras, faixa["temp_max_c"])
     nivel = classificar_risco(graus_hora)
 
     return {
         "amostras": len(leituras),
-        "amostras_fora_faixa": fora_faixa,
+        "amostras_fora_faixa": contar_fora_da_faixa(temperaturas, faixa),
         "primeira_leitura": leituras[0]["data_hora"],
         "ultima_leitura": leituras[-1]["data_hora"],
         "temp_min_c": min(temperaturas),

@@ -43,21 +43,25 @@ def converter_feed(feed):
     }
 
 
-def buscar_leituras(canal, quantidade=8000, read_api_key=None):
+def buscar_leituras(canal, quantidade=8000, chave_leitura=None):
     """
     Busca as ultimas leituras do canal. 8000 e o maximo que o
     ThingSpeak devolve por chamada. A chave so e preciso se o canal
     for privado; ela vem da configuracao, nunca do codigo.
     """
     parametros = {"results": quantidade}
-    if read_api_key:
-        parametros["api_key"] = read_api_key
+    if chave_leitura:
+        parametros["api_key"] = chave_leitura
 
     try:
         resposta = requests.get(URL_FEEDS.format(canal=canal), params=parametros, timeout=15)
         resposta.raise_for_status()
         dados = resposta.json()
     except (requests.RequestException, ValueError) as erro:
-        raise ErroThingSpeak(f"Falha ao consultar o ThingSpeak: {erro}") from erro
+        # O detalhe tecnico (em ingles) fica guardado no "from erro";
+        # quem usa o painel ve so a mensagem em portugues.
+        raise ErroThingSpeak(
+            "Não foi possível ler os dados do ThingSpeak agora. Tente de novo em alguns minutos."
+        ) from erro
 
     return [converter_feed(feed) for feed in dados.get("feeds", [])]

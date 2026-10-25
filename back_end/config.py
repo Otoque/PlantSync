@@ -23,7 +23,7 @@ DATABASE_URL = os.getenv(
 CANAL_THINGSPEAK = int(os.getenv("CANAL_THINGSPEAK", "3493443"))
 
 # So e necessaria se o canal deixar de ser publico.
-THINGSPEAK_READ_API_KEY = os.getenv("THINGSPEAK_READ_API_KEY")
+CHAVE_LEITURA_THINGSPEAK = os.getenv("CHAVE_LEITURA_THINGSPEAK")
 
 # Enderecos do painel web que podem chamar a API pelo navegador.
 CORS_ORIGENS = os.getenv(

@@ -47,6 +47,7 @@ def gravar_leituras(leituras):
     Grava leituras direto no banco de teste (a mesma sessao que a API usa).
     Cada item e (horas apos o INICIO, temperatura, umidade, luminosidade).
     """
+    # abrir_sessao_teste (conftest.py) e um gerador; next() pega a sessao que ele entrega.
     sessao = next(app.dependency_overrides[abrir_sessao]())
     for numero, (horas, temperatura, umidade, lux) in enumerate(leituras, start=1):
         sessao.add(Leitura(

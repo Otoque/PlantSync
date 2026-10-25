@@ -35,6 +35,8 @@ def cliente():
         finally:
             sessao.close()
 
+    # Troca o banco de verdade pelo de teste em todas as rotas.
     app.dependency_overrides[abrir_sessao] = abrir_sessao_teste
+    # O teste roda neste yield; depois, as rotas voltam ao banco normal.
     yield TestClient(app)
     app.dependency_overrides.clear()

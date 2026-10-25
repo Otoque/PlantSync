@@ -17,12 +17,14 @@ class FaixaSegura(BaseModel):
     umidade_max_pct: float = Field(ge=0, le=100)
 
 
-class FrutaEdicao(FaixaSegura):
+class FrutaDados(FaixaSegura):
+    """Campos de uma fruta que podem ser editados (usado no PUT)."""
     nome: str = Field(min_length=1)
     fonte: str = Field(min_length=1)
 
 
-class FrutaNova(FrutaEdicao):
+class FrutaNova(FrutaDados):
+    """Os mesmos campos, mais o id, que so e escolhido no cadastro."""
     # Letras minusculas sem acento, numeros, hifen ou sublinhado. Ex.: "uva"
     id: str = Field(pattern=r"^[a-z0-9_-]+$")
 

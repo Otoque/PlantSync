@@ -50,8 +50,10 @@ def test_limpeza_tira_valor_impossivel_nulo_e_retransmissao():
         leitura(3, None),       # sem temperatura
         leitura(4, 1.2),
     ]
-    limpas = limpar_leituras(leituras)
-    assert [l["data_hora"] for l in limpas] == [INICIO, INICIO + timedelta(hours=1), INICIO + timedelta(hours=4)]
+    datas = []
+    for limpa in limpar_leituras(leituras):
+        datas.append(limpa["data_hora"])
+    assert datas == [INICIO, INICIO + timedelta(hours=1), INICIO + timedelta(hours=4)]
 
 
 def test_eventos_de_porta_agrupam_leituras_seguidas():
