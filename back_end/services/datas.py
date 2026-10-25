@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+# No Windows o ZoneInfo precisa do pacote tzdata (esta no requirements.txt).
 FUSO_RECIFE = ZoneInfo("America/Recife")
 
 
@@ -29,6 +30,9 @@ def formatar_utc(data):
 
 
 def hora_recife(data):
-    """Texto com hora e dia no horario de Recife, ex.: '18:00 de 24/10'."""
+    """
+    Texto com hora e dia no horario de Recife, ex.: '18:00 de 24/10'.
+    Recebe a data como esta no banco (UTC sem fuso).
+    """
     local = data.replace(tzinfo=timezone.utc).astimezone(FUSO_RECIFE)
     return local.strftime("%H:%M de %d/%m")

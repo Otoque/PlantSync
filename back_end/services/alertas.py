@@ -1,18 +1,16 @@
-"""Monta os alertas que o painel mostra para os lotes em transito."""
+"""Monta os alertas que o painel mostra para o lote em transito."""
 
-from models.tabelas import Lote
-from services.analise import ACOES_CURTAS
+from services.analise import ACOES_CURTAS, GRAVIDADE
 from services.datas import formatar_utc, hora_recife
-from services.lotes import analisar
-
-# Quanto maior, mais grave. Usado para ordenar a lista de alertas.
-GRAVIDADE = {"AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
+from services.lotes import buscar_e_analisar, lote_em_transito
 
 
 def alerta_risco_termico(lote, analise):
+    acao = ACOES_CURTAS[analise["nivel"]]
+    # :.0f mostra os graus-hora sem casas decimais; :g tira o ".0" do limite (2.0 vira 2).
     mensagem = (
         f"Lote {lote.id} ({lote.fruta_id}) acumulou {analise['graus_hora']:.0f} °C·h "
-        f"acima de {lote.temp_max_c:g} °C: {ACOES_CURTAS[analise['nivel']]}."
+        f"acima de {lote.temp_max_c:g} °C: {acao}."
     )
     return {
         "lote_id": lote.id,
@@ -40,20 +38,25 @@ def alerta_porta_aberta(lote, evento):
 
 
 def gerar_alertas(sessao):
-    alertas = []
-    lotes = sessao.query(Lote).filter(Lote.fim.is_(None)).all()
+    """
+    Alertas do lote em transito: um de risco termico (se o nivel nao for
+    VERDE) e um para cada abertura de porta. Lote encerrado nao gera alerta.
+    """
+    lote = lote_em_transito(sessao)
+    if lote is None:
+        return []
 
-    for lote in lotes:
-        analise = analisar(sessao, lote)
-        if analise["nivel"] in GRAVIDADE:
-            alertas.append(alerta_risco_termico(lote, analise))
-        for evento in analise["eventos_porta"]:
-            alertas.append(alerta_porta_aberta(lote, evento))
+    alertas = []
+    analise = buscar_e_analisar(sessao, lote)
+    if analise["nivel"] in GRAVIDADE:
+        alertas.append(alerta_risco_termico(lote, analise))
+    for evento in analise["eventos_porta"]:
+        alertas.append(alerta_porta_aberta(lote, evento))
 
     # Mais grave primeiro; no mesmo nivel, o mais recente primeiro.
-    alertas.sort(key=lambda alerta: alerta["data_hora"], reverse=True)
-    alertas.sort(key=lambda alerta: GRAVIDADE[alerta["nivel"]], reverse=True)
+    alertas.sort(key=lambda alerta: (GRAVIDADE[alerta["nivel"]], alerta["data_hora"]), reverse=True)
 
+    # A data so vira texto depois de ordenar, para ordenar por data e nao por texto.
     for alerta in alertas:
         alerta["data_hora"] = formatar_utc(alerta["data_hora"])
     return alertas

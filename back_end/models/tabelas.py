@@ -3,12 +3,15 @@ Tabelas do banco.
 
 Datas sao gravadas em UTC e sem fuso (o SQLite nao guarda fuso).
 A conversao para o horario de Recife fica com o painel.
+
+Cada linha "nome: Mapped[tipo]" cria uma coluna daquele tipo.
+"Mapped[tipo | None]" quer dizer que a coluna aceita ficar vazia.
 """
 
 from datetime import datetime
 
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from models.banco import Base
 
@@ -41,8 +44,6 @@ class Lote(Base):
     temp_max_c: Mapped[float]
     umidade_min_pct: Mapped[float]
     umidade_max_pct: Mapped[float]
-
-    fruta: Mapped[Fruta] = relationship()
 
 
 class Leitura(Base):
