@@ -26,8 +26,8 @@ painel web. Qualquer mudança aqui precisa ser combinada com a frente do fronten
 |---|---|
 | 200 | Consulta ou ação concluída. |
 | 201 | Lote criado. |
-| 400 | Dado inválido no corpo da requisição. |
-| 404 | Lote ou fruta inexistente. |
+| 400 | Dado inválido no corpo da requisição. A mensagem começa pelo campo, ex.: `"fruta: campo obrigatório"`. |
+| 404 | Lote, fruta ou rota inexistente. |
 | 502 | O ThingSpeak não respondeu ou respondeu com erro. |
 
 ## Conceitos
