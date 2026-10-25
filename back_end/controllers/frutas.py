@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/frutas", tags=["frutas"])
 
 @router.get("")
 def listar_frutas(sessao: Session = Depends(abrir_sessao)):
-    return [frutas.fruta_para_json(fruta) for fruta in frutas.listar_frutas(sessao)]
+    return [frutas.fruta_para_json(fruta) for fruta in frutas.todas_as_frutas(sessao)]
 
 
 @router.post("", status_code=201)

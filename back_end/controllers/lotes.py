@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/lotes", tags=["lotes"])
 @router.get("")
 def listar_lotes(sessao: Session = Depends(abrir_sessao)):
     resposta = []
-    for lote in lotes.listar_lotes(sessao):
+    for lote in lotes.todos_os_lotes(sessao):
         resposta.append(lotes.lote_resumo_json(sessao, lote))
     return resposta
 
@@ -38,7 +38,7 @@ def encerrar_lote(
     sessao: Session = Depends(abrir_sessao),
 ):
     lote = lotes.buscar_lote(sessao, lote_id)
-    lote = lotes.encerrar_lote(sessao, lote, dados.fim)
+    lote = lotes.registrar_fim_do_lote(sessao, lote, dados.fim)
     return lotes.lote_resumo_json(sessao, lote)
 
 
