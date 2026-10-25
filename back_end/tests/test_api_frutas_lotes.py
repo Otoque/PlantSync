@@ -1,78 +1,34 @@
 """
 Testes de caixa-preta da API (frutas, lotes e leituras), escritos a partir de
 docs/api-contrato.md. Os testes so usam o que o contrato promete.
+
+As funcoes auxiliares (criar_lote, gravar_leituras, em...) ficam em auxiliares.py.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
-from app import app
-from models.banco import abrir_sessao
-from models.tabelas import Leitura
-
-INICIO = datetime(2026, 10, 24, 9, 0, 0)  # 24/10/2026 09:00 UTC
-
-FRUTA_MELAO = {
-    "id": "melao",
-    "nome": "Melão",
-    "temp_min_c": 2.0,
-    "temp_max_c": 5.0,
-    "umidade_min_pct": 90.0,
-    "umidade_max_pct": 95.0,
-    "fonte": "Referência da faixa",
-}
-
-LOTE_UVA = {
-    "fruta": "uva",
-    "origem": "Packing house Petrolina",
-    "porto_destino": "Suape",
-    "inicio": "2026-10-24T09:00:00Z",
-}
-
-
-# ---------- funcoes auxiliares ----------
-
-def criar_lote(cliente, **mudancas):
-    corpo = {**LOTE_UVA, **mudancas}
-    resposta = cliente.post("/api/lotes", json=corpo)
-    assert resposta.status_code == 201, resposta.text
-    return resposta.json()
-
-
-def agora_utc():
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-def gravar_leituras(leituras):
-    """
-    Grava leituras direto no banco de teste (a mesma sessao que a API usa).
-    Cada item e (horas apos o INICIO, temperatura, umidade, luminosidade).
-    """
-    # abrir_sessao_teste (conftest.py) e um gerador; next() pega a sessao que ele entrega.
-    sessao = next(app.dependency_overrides[abrir_sessao]())
-    for numero, (horas, temperatura, umidade, lux) in enumerate(leituras, start=1):
-        sessao.add(Leitura(
-            entry_id=numero,
-            data_hora=INICIO + timedelta(hours=horas),
-            temperatura_c=temperatura,
-            umidade_pct=umidade,
-            luminosidade_lux=lux,
-        ))
-    sessao.commit()
-    sessao.close()
-
-
-def achar_datas(valor):
-    """Percorre o JSON e devolve os textos dos campos que sao datas."""
-    textos = []
-    if isinstance(valor, dict):
-        for chave, conteudo in valor.items():
-            if chave in ("inicio", "fim", "data_hora", "primeira_leitura", "ultima_leitura") and conteudo:
-                textos.append(conteudo)
-            textos += achar_datas(conteudo)
-    elif isinstance(valor, list):
-        for item in valor:
-            textos += achar_datas(item)
-    return textos
+from auxiliares import (
+    LOTE_UVA,
+    agora_utc,
+    analise_do_lote,
+    buscar_fruta,
+    cadastrar_fruta,
+    conferir_data_utc,
+    corpo_de_lote,
+    criar_lote,
+    detalhe_do_lote,
+    editar_fruta,
+    em,
+    encerrar_lote,
+    faixa_da_uva,
+    fruta_melao,
+    gravar_leituras,
+    ler_data,
+    leituras_do_lote,
+    leituras_por_hora,
+    nova_leitura,
+    sem_campo,
+)
 
 
 # ---------- saude e frutas ----------
@@ -86,88 +42,93 @@ def test_saude_devolve_status_ok(cliente):
 def test_listar_frutas_traz_uva_e_manga_iniciais(cliente):
     resposta = cliente.get("/api/frutas")
     assert resposta.status_code == 200
-    frutas = {f["id"]: f for f in resposta.json()}
 
-    assert set(frutas) == {"uva", "manga"}
-    assert frutas["uva"]["temp_min_c"] == 0.0
-    assert frutas["uva"]["temp_max_c"] == 2.0
-    assert frutas["uva"]["umidade_min_pct"] == 85.0
-    assert frutas["uva"]["umidade_max_pct"] == 95.0
-    assert frutas["manga"]["temp_min_c"] == 10.0
-    assert frutas["manga"]["temp_max_c"] == 13.0
-    assert frutas["manga"]["umidade_min_pct"] == 85.0
-    assert frutas["manga"]["umidade_max_pct"] == 90.0
+    ids = []
+    for fruta in resposta.json():
+        ids.append(fruta["id"])
+    assert set(ids) == {"uva", "manga"}
+
+    uva = buscar_fruta(cliente, "uva")
+    assert uva["temp_min_c"] == 0.0
+    assert uva["temp_max_c"] == 2.0
+    assert uva["umidade_min_pct"] == 85.0
+    assert uva["umidade_max_pct"] == 95.0
+
+    manga = buscar_fruta(cliente, "manga")
+    assert manga["temp_min_c"] == 10.0
+    assert manga["temp_max_c"] == 13.0
+    assert manga["umidade_min_pct"] == 85.0
+    assert manga["umidade_max_pct"] == 90.0
 
 
 def test_cadastrar_fruta_valida_devolve_201_e_aparece_na_lista(cliente):
-    resposta = cliente.post("/api/frutas", json=FRUTA_MELAO)
+    resposta = cadastrar_fruta(cliente)
     assert resposta.status_code == 201
-    assert resposta.json() == FRUTA_MELAO
+    assert resposta.json() == fruta_melao()
 
-    ids = [f["id"] for f in cliente.get("/api/frutas").json()]
+    ids = [fruta["id"] for fruta in cliente.get("/api/frutas").json()]
     assert "melao" in ids
 
 
 def test_cadastrar_fruta_com_id_repetido_devolve_400(cliente):
-    cliente.post("/api/frutas", json=FRUTA_MELAO)
-    resposta = cliente.post("/api/frutas", json=FRUTA_MELAO)
+    cadastrar_fruta(cliente)
+    resposta = cadastrar_fruta(cliente)
     assert resposta.status_code == 400
     assert "erro" in resposta.json()
 
 
 def test_cadastrar_fruta_com_id_de_fruta_inicial_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "id": "uva"})
+    resposta = cadastrar_fruta(cliente, id="uva")
     assert resposta.status_code == 400
 
 
 def test_cadastrar_fruta_com_temp_min_igual_a_temp_max_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "temp_min_c": 5.0, "temp_max_c": 5.0})
+    resposta = cadastrar_fruta(cliente, temp_min_c=5.0, temp_max_c=5.0)
     assert resposta.status_code == 400
     assert "erro" in resposta.json()
 
 
 def test_cadastrar_fruta_com_temp_min_maior_que_temp_max_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "temp_min_c": 8.0, "temp_max_c": 5.0})
+    resposta = cadastrar_fruta(cliente, temp_min_c=8.0, temp_max_c=5.0)
     assert resposta.status_code == 400
 
 
 def test_cadastrar_fruta_com_umidade_min_maior_que_max_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "umidade_min_pct": 96.0, "umidade_max_pct": 90.0})
+    resposta = cadastrar_fruta(cliente, umidade_min_pct=96.0, umidade_max_pct=90.0)
     assert resposta.status_code == 400
 
 
 def test_cadastrar_fruta_com_umidade_acima_de_100_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "umidade_max_pct": 101.0})
+    resposta = cadastrar_fruta(cliente, umidade_max_pct=101.0)
     assert resposta.status_code == 400
 
 
 def test_cadastrar_fruta_com_umidade_abaixo_de_0_devolve_400(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "umidade_min_pct": -1.0})
+    resposta = cadastrar_fruta(cliente, umidade_min_pct=-1.0)
     assert resposta.status_code == 400
 
 
 def test_cadastrar_fruta_com_id_invalido_devolve_400(cliente):
     # o id so aceita letras minusculas sem acento, numeros, - ou _
     for id_ruim in ["Melao", "melão", "meu melao", "melao!"]:
-        resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "id": id_ruim})
+        resposta = cadastrar_fruta(cliente, id=id_ruim)
         assert resposta.status_code == 400, id_ruim
 
 
 def test_cadastrar_fruta_aceita_id_com_hifen_underline_e_numero(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "id": "melao-2_b"})
+    resposta = cadastrar_fruta(cliente, id="melao-2_b")
     assert resposta.status_code == 201
 
 
 def test_cadastrar_fruta_sem_campo_obrigatorio_devolve_400(cliente):
-    corpo = dict(FRUTA_MELAO)
-    del corpo["fonte"]
+    corpo = sem_campo(fruta_melao(), "fonte")
     resposta = cliente.post("/api/frutas", json=corpo)
     assert resposta.status_code == 400
     assert "erro" in resposta.json()
 
 
 def test_erro_de_fruta_segue_o_formato_com_chave_erro(cliente):
-    resposta = cliente.post("/api/frutas", json={**FRUTA_MELAO, "temp_min_c": 9.0, "temp_max_c": 5.0})
+    resposta = cadastrar_fruta(cliente, temp_min_c=9.0, temp_max_c=5.0)
     corpo = resposta.json()
     assert list(corpo.keys()) == ["erro"]
     assert isinstance(corpo["erro"], str)
@@ -175,33 +136,25 @@ def test_erro_de_fruta_segue_o_formato_com_chave_erro(cliente):
 
 
 def test_editar_fruta_devolve_200_com_os_novos_valores(cliente):
-    corpo = {k: v for k, v in FRUTA_MELAO.items() if k != "id"}
-    corpo["nome"] = "Uva sem semente"
-    corpo["temp_min_c"] = 0.0
-    corpo["temp_max_c"] = 4.0
-
-    resposta = cliente.put("/api/frutas/uva", json=corpo)
+    resposta = editar_fruta(
+        cliente, "uva", nome="Uva sem semente", temp_min_c=0.0, temp_max_c=4.0
+    )
     assert resposta.status_code == 200
     assert resposta.json()["id"] == "uva"
     assert resposta.json()["nome"] == "Uva sem semente"
     assert resposta.json()["temp_max_c"] == 4.0
 
-    uva = [f for f in cliente.get("/api/frutas").json() if f["id"] == "uva"][0]
-    assert uva["temp_max_c"] == 4.0
+    assert buscar_fruta(cliente, "uva")["temp_max_c"] == 4.0
 
 
 def test_editar_fruta_inexistente_devolve_404(cliente):
-    corpo = {k: v for k, v in FRUTA_MELAO.items() if k != "id"}
-    resposta = cliente.put("/api/frutas/abacaxi", json=corpo)
+    resposta = editar_fruta(cliente, "abacaxi")
     assert resposta.status_code == 404
     assert "erro" in resposta.json()
 
 
 def test_editar_fruta_com_faixa_invalida_devolve_400(cliente):
-    corpo = {k: v for k, v in FRUTA_MELAO.items() if k != "id"}
-    corpo["temp_min_c"] = 9.0
-    corpo["temp_max_c"] = 5.0
-    resposta = cliente.put("/api/frutas/uva", json=corpo)
+    resposta = editar_fruta(cliente, "uva", temp_min_c=9.0, temp_max_c=5.0)
     assert resposta.status_code == 400
 
 
@@ -218,96 +171,86 @@ def test_criar_lote_devolve_201_em_transito_com_faixa_da_fruta(cliente):
     assert lote["inicio"] == "2026-10-24T09:00:00Z"
     assert lote["fim"] is None
     assert lote["status"] == "em_transito"
-    assert lote["faixa_segura"] == {
-        "temp_min_c": 0.0,
-        "temp_max_c": 2.0,
-        "umidade_min_pct": 85.0,
-        "umidade_max_pct": 95.0,
-    }
+    assert lote["faixa_segura"] == faixa_da_uva()
     assert lote["risco"]["nivel"] == "SEM_DADOS"
     assert lote["risco"]["graus_hora"] == 0
 
 
 def test_criar_lote_sem_inicio_usa_o_horario_atual(cliente):
-    corpo = {k: v for k, v in LOTE_UVA.items() if k != "inicio"}
+    corpo = sem_campo(LOTE_UVA, "inicio")
     antes = agora_utc() - timedelta(minutes=1)
     resposta = cliente.post("/api/lotes", json=corpo)
     depois = agora_utc() + timedelta(minutes=1)
 
     assert resposta.status_code == 201
-    inicio = datetime.strptime(resposta.json()["inicio"], "%Y-%m-%dT%H:%M:%SZ")
+    inicio = ler_data(resposta.json()["inicio"])
     assert antes <= inicio <= depois
 
 
 def test_criar_lote_com_fruta_inexistente_devolve_400(cliente):
-    resposta = cliente.post("/api/lotes", json={**LOTE_UVA, "fruta": "abacaxi"})
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(fruta="abacaxi"))
     assert resposta.status_code == 400
     assert "abacaxi" in resposta.json()["erro"]
 
 
 def test_criar_lote_sem_origem_devolve_400(cliente):
-    corpo = {k: v for k, v in LOTE_UVA.items() if k != "origem"}
-    resposta = cliente.post("/api/lotes", json=corpo)
+    resposta = cliente.post("/api/lotes", json=sem_campo(LOTE_UVA, "origem"))
     assert resposta.status_code == 400
     assert "erro" in resposta.json()
 
 
 def test_criar_lote_sem_porto_destino_devolve_400(cliente):
-    corpo = {k: v for k, v in LOTE_UVA.items() if k != "porto_destino"}
-    resposta = cliente.post("/api/lotes", json=corpo)
+    resposta = cliente.post("/api/lotes", json=sem_campo(LOTE_UVA, "porto_destino"))
     assert resposta.status_code == 400
 
 
 def test_segundo_lote_em_transito_devolve_400_citando_o_lote_aberto(cliente):
     primeiro = criar_lote(cliente)
-    resposta = cliente.post("/api/lotes", json={**LOTE_UVA, "fruta": "manga"})
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(fruta="manga"))
     assert resposta.status_code == 400
     assert f"lote {primeiro['id']}" in resposta.json()["erro"]
 
 
 def test_depois_de_encerrar_o_lote_e_possivel_criar_outro(cliente):
     primeiro = criar_lote(cliente)
-    cliente.post(f"/api/lotes/{primeiro['id']}/encerrar")
-    resposta = cliente.post("/api/lotes", json={**LOTE_UVA, "fruta": "manga"})
+    encerrar_lote(cliente, primeiro)
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(fruta="manga"))
     assert resposta.status_code == 201
 
 
 def test_criar_lote_com_faixa_segura_propria(cliente):
-    faixa = {"temp_min_c": 1.0, "temp_max_c": 3.0, "umidade_min_pct": 80.0, "umidade_max_pct": 92.0}
+    faixa = faixa_da_uva(
+        temp_min_c=1.0, temp_max_c=3.0, umidade_min_pct=80.0, umidade_max_pct=92.0
+    )
     lote = criar_lote(cliente, faixa_segura=faixa)
     assert lote["faixa_segura"] == faixa
 
     # a fruta continua com a faixa original
-    uva = [f for f in cliente.get("/api/frutas").json() if f["id"] == "uva"][0]
-    assert uva["temp_max_c"] == 2.0
+    assert buscar_fruta(cliente, "uva")["temp_max_c"] == 2.0
 
 
 def test_criar_lote_com_faixa_segura_propria_invalida_devolve_400(cliente):
-    faixa = {"temp_min_c": 5.0, "temp_max_c": 3.0, "umidade_min_pct": 80.0, "umidade_max_pct": 92.0}
-    resposta = cliente.post("/api/lotes", json={**LOTE_UVA, "faixa_segura": faixa})
+    faixa = faixa_da_uva(temp_min_c=5.0, temp_max_c=3.0)
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(faixa_segura=faixa))
     assert resposta.status_code == 400
 
 
 def test_criar_lote_com_faixa_segura_de_umidade_acima_de_100_devolve_400(cliente):
-    faixa = {"temp_min_c": 0.0, "temp_max_c": 3.0, "umidade_min_pct": 80.0, "umidade_max_pct": 120.0}
-    resposta = cliente.post("/api/lotes", json={**LOTE_UVA, "faixa_segura": faixa})
+    faixa = faixa_da_uva(temp_max_c=3.0, umidade_max_pct=120.0)
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(faixa_segura=faixa))
     assert resposta.status_code == 400
 
 
 def test_editar_fruta_depois_nao_muda_a_faixa_do_lote_ja_criado(cliente):
     lote = criar_lote(cliente)
 
-    corpo = {
-        "nome": "Uva de mesa",
-        "temp_min_c": 0.0,
-        "temp_max_c": 4.0,
-        "umidade_min_pct": 70.0,
-        "umidade_max_pct": 99.0,
-        "fonte": "Outra fonte",
-    }
-    assert cliente.put("/api/frutas/uva", json=corpo).status_code == 200
+    resposta = editar_fruta(
+        cliente, "uva", nome="Uva de mesa", temp_min_c=0.0, temp_max_c=4.0,
+        umidade_min_pct=70.0, umidade_max_pct=99.0,
+    )
+    assert resposta.status_code == 200
 
-    detalhe = cliente.get(f"/api/lotes/{lote['id']}").json()
+    detalhe = detalhe_do_lote(cliente, lote)
     assert detalhe["faixa_segura"]["temp_max_c"] == 2.0
     assert detalhe["faixa_segura"]["umidade_min_pct"] == 85.0
 
@@ -315,39 +258,29 @@ def test_editar_fruta_depois_nao_muda_a_faixa_do_lote_ja_criado(cliente):
     assert item_da_lista["faixa_segura"]["temp_max_c"] == 2.0
 
 
-def test_editar_fruta_depois_nao_muda_o_risco_do_lote_ja_criado(cliente):
+def test_editar_fruta_depois_nao_muda_o_risco_do_lote_ja_criado(cliente, banco):
     lote = criar_lote(cliente)
     # 3 °C acima do limite (2 °C) por 10 h = 30 °C·h
-    gravar_leituras([(h, 5.0, 90.0, None) for h in range(0, 11)])
+    gravar_leituras(banco, leituras_por_hora(5.0))
 
-    corpo = {
-        "nome": "Uva de mesa",
-        "temp_min_c": 0.0,
-        "temp_max_c": 10.0,
-        "umidade_min_pct": 85.0,
-        "umidade_max_pct": 95.0,
-        "fonte": "Outra fonte",
-    }
-    cliente.put("/api/frutas/uva", json=corpo)
+    editar_fruta(
+        cliente, "uva", nome="Uva de mesa", temp_min_c=0.0, temp_max_c=10.0,
+        umidade_min_pct=85.0, umidade_max_pct=95.0,
+    )
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["graus_hora"] == 30.0
     assert analise["amostras_fora_faixa"] == 11
 
 
 def test_editar_fruta_vale_para_o_lote_novo(cliente):
     primeiro = criar_lote(cliente)
-    cliente.post(f"/api/lotes/{primeiro['id']}/encerrar")
+    encerrar_lote(cliente, primeiro)
 
-    corpo = {
-        "nome": "Uva de mesa",
-        "temp_min_c": 0.0,
-        "temp_max_c": 4.0,
-        "umidade_min_pct": 85.0,
-        "umidade_max_pct": 95.0,
-        "fonte": "Outra fonte",
-    }
-    cliente.put("/api/frutas/uva", json=corpo)
+    editar_fruta(
+        cliente, "uva", nome="Uva de mesa", temp_min_c=0.0, temp_max_c=4.0,
+        umidade_min_pct=85.0, umidade_max_pct=95.0,
+    )
 
     novo = criar_lote(cliente)
     assert novo["faixa_segura"]["temp_max_c"] == 4.0
@@ -363,17 +296,17 @@ def test_listar_lotes_vazio_devolve_lista_vazia(cliente):
 
 def test_listar_lotes_do_mais_recente_para_o_mais_antigo(cliente):
     antigo = criar_lote(cliente, inicio="2026-10-20T09:00:00Z")
-    cliente.post(f"/api/lotes/{antigo['id']}/encerrar", json={"fim": "2026-10-21T09:00:00Z"})
+    encerrar_lote(cliente, antigo, fim="2026-10-21T09:00:00Z")
     recente = criar_lote(cliente, inicio="2026-10-24T09:00:00Z")
 
     ids = [lote["id"] for lote in cliente.get("/api/lotes").json()]
     assert ids == [recente["id"], antigo["id"]]
 
 
-def test_listar_lotes_traz_resumo_de_risco(cliente):
+def test_listar_lotes_traz_resumo_de_risco(cliente, banco):
     criar_lote(cliente)
     # 3 °C acima do limite (2 °C) por 10 h = 30 °C·h
-    gravar_leituras([(h, 5.0, 90.0, None) for h in range(0, 11)])
+    gravar_leituras(banco, leituras_por_hora(5.0))
 
     lote = cliente.get("/api/lotes").json()[0]
     assert lote["risco"]["graus_hora"] == 30.0
@@ -390,7 +323,7 @@ def test_detalhe_de_lote_inexistente_devolve_404(cliente):
 
 def test_detalhe_de_lote_sem_leituras(cliente):
     lote = criar_lote(cliente)
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
 
     assert analise["amostras"] == 0
     assert analise["amostras_fora_faixa"] == 0
@@ -403,19 +336,21 @@ def test_detalhe_de_lote_sem_leituras(cliente):
     assert analise["eventos_porta"] == []
 
 
-def test_detalhe_do_lote_calcula_graus_hora_e_nivel(cliente):
+def test_detalhe_do_lote_calcula_graus_hora_e_nivel(cliente, banco):
     lote = criar_lote(cliente)
     # 3 °C acima do limite (2 °C) por 10 h = 30 °C·h -> LARANJA (20 a menos de 50)
-    gravar_leituras([(h, 5.0, 90.0, None) for h in range(0, 11)])
+    gravar_leituras(banco, leituras_por_hora(5.0))
 
-    detalhe = cliente.get(f"/api/lotes/{lote['id']}").json()
+    detalhe = detalhe_do_lote(cliente, lote)
     analise = detalhe["analise"]
 
     assert detalhe["id"] == lote["id"]
     assert analise["amostras"] == 11
     assert analise["graus_hora"] == 30.0
     assert analise["nivel"] == "LARANJA"
-    assert analise["recomendacao"] == "Abuso relevante. Inspeção física obrigatória antes do embarque."
+    assert analise["recomendacao"] == (
+        "Abuso relevante. Inspeção física obrigatória antes do embarque."
+    )
     assert analise["temp_min_c"] == 5.0
     assert analise["temp_max_c"] == 5.0
     assert analise["temp_media_c"] == 5.0
@@ -423,64 +358,64 @@ def test_detalhe_do_lote_calcula_graus_hora_e_nivel(cliente):
     assert analise["ultima_leitura"] == "2026-10-24T19:00:00Z"
 
 
-def test_detalhe_do_lote_nivel_verde_quando_tudo_dentro_da_faixa(cliente):
+def test_detalhe_do_lote_nivel_verde_quando_tudo_dentro_da_faixa(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([(h, 1.0, 90.0, None) for h in range(0, 5)])
+    gravar_leituras(banco, leituras_por_hora(1.0, horas=4))
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["graus_hora"] == 0
     assert analise["nivel"] == "VERDE"
     assert analise["amostras_fora_faixa"] == 0
 
 
-def test_detalhe_do_lote_nivel_vermelho_com_50_graus_hora(cliente):
+def test_detalhe_do_lote_nivel_vermelho_com_50_graus_hora(cliente, banco):
     lote = criar_lote(cliente)
     # 5 °C acima do limite (2 °C) por 10 h = 50 °C·h -> VERMELHO (50 ou mais)
-    gravar_leituras([(h, 7.0, 90.0, None) for h in range(0, 11)])
+    gravar_leituras(banco, leituras_por_hora(7.0))
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["graus_hora"] == 50.0
     assert analise["nivel"] == "VERMELHO"
 
 
-def test_amostras_fora_da_faixa_contam_temperatura_acima_e_abaixo(cliente):
+def test_amostras_fora_da_faixa_contam_temperatura_acima_e_abaixo(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, None),   # dentro
-        (1, 5.0, 90.0, None),   # acima de 2 °C
-        (2, -1.0, 90.0, None),  # abaixo de 0 °C
-        (3, 2.0, 90.0, None),   # no limite: ainda dentro
-        (4, 0.0, 90.0, None),   # no limite: ainda dentro
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0),    # dentro
+        nova_leitura(em(1), 5.0),    # acima de 2 °C
+        nova_leitura(em(2), -1.0),   # abaixo de 0 °C
+        nova_leitura(em(3), 2.0),    # no limite: ainda dentro
+        nova_leitura(em(4), 0.0),    # no limite: ainda dentro
     ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 5
     assert analise["amostras_fora_faixa"] == 2
 
 
-def test_umidade_fora_da_faixa_nao_entra_em_amostras_fora_faixa(cliente):
+def test_umidade_fora_da_faixa_nao_entra_em_amostras_fora_faixa(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 50.0, None),   # umidade baixa, temperatura boa
-        (1, 1.0, 99.0, None),   # umidade alta, temperatura boa
-        (2, 1.0, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, umidade=50.0),   # umidade baixa, temperatura boa
+        nova_leitura(em(1), 1.0, umidade=99.0),   # umidade alta, temperatura boa
+        nova_leitura(em(2), 1.0, umidade=90.0),
     ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras_fora_faixa"] == 0
 
 
-def test_detalhe_do_lote_traz_eventos_de_porta(cliente):
+def test_detalhe_do_lote_traz_eventos_de_porta(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0.0, 1.0, 90.0, 5.0),
-        (12.0, 1.0, 90.0, 640.0),   # porta abre
-        (12.5, 1.0, 90.0, 880.0),
-        (13.0, 1.0, 90.0, 700.0),   # porta ainda aberta
-        (14.0, 1.0, 90.0, 5.0),     # fecha
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, lux=5.0),
+        nova_leitura(em(12), 1.0, lux=640.0),     # porta abre
+        nova_leitura(em(12, 30), 1.0, lux=880.0),
+        nova_leitura(em(13), 1.0, lux=700.0),     # porta ainda aberta
+        nova_leitura(em(14), 1.0, lux=5.0),       # fecha
     ])
 
-    eventos = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]["eventos_porta"]
+    eventos = analise_do_lote(cliente, lote)["eventos_porta"]
     assert len(eventos) == 1
     assert eventos[0]["inicio"] == "2026-10-24T21:00:00Z"
     assert eventos[0]["fim"] == "2026-10-24T22:00:00Z"
@@ -488,77 +423,80 @@ def test_detalhe_do_lote_traz_eventos_de_porta(cliente):
     assert eventos[0]["lux_max"] == 880.0
 
 
-def test_dois_eventos_de_porta_separados_viram_dois_eventos(cliente):
+def test_dois_eventos_de_porta_separados_viram_dois_eventos(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, 500.0),
-        (1, 1.0, 90.0, 5.0),
-        (2, 1.0, 90.0, 500.0),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, lux=500.0),
+        nova_leitura(em(1), 1.0, lux=5.0),
+        nova_leitura(em(2), 1.0, lux=500.0),
     ])
 
-    eventos = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]["eventos_porta"]
+    eventos = analise_do_lote(cliente, lote)["eventos_porta"]
     assert len(eventos) == 2
 
 
-def test_luminosidade_de_300_lux_nao_e_porta_aberta(cliente):
+def test_luminosidade_de_300_lux_nao_e_porta_aberta(cliente, banco):
     lote = criar_lote(cliente)
     # o contrato diz "passa de 300 lux": 300 exatos nao conta
-    gravar_leituras([(0, 1.0, 90.0, 300.0), (1, 1.0, 90.0, 300.0)])
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, lux=300.0),
+        nova_leitura(em(1), 1.0, lux=300.0),
+    ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["eventos_porta"] == []
 
 
-def test_leitura_antes_do_inicio_do_lote_nao_entra(cliente):
+def test_leitura_antes_do_inicio_do_lote_nao_entra(cliente, banco):
     lote = criar_lote(cliente)  # inicio as 09:00
-    gravar_leituras([
-        (-2, 20.0, 90.0, None),  # 07:00, antes do lote
-        (0, 1.0, 90.0, None),
-        (1, 1.0, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(-2), 20.0),  # 07:00, antes do lote
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(1), 1.0),
     ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
     assert analise["primeira_leitura"] == "2026-10-24T09:00:00Z"
     assert analise["graus_hora"] == 0
 
 
-def test_leituras_depois_do_fim_do_lote_nao_entram(cliente):
+def test_leituras_depois_do_fim_do_lote_nao_entram(cliente, banco):
     lote = criar_lote(cliente)
-    cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-24T12:00:00Z"})
-    gravar_leituras([
-        (0, 1.0, 90.0, None),
-        (3, 1.0, 90.0, None),    # 12:00, no fim
-        (4, 30.0, 90.0, None),   # 13:00, depois do fim
-        (5, 30.0, 90.0, None),
+    encerrar_lote(cliente, lote, fim="2026-10-24T12:00:00Z")
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(3), 1.0),    # 12:00, no fim
+        nova_leitura(em(4), 30.0),   # 13:00, depois do fim
+        nova_leitura(em(5), 30.0),
     ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
     assert analise["graus_hora"] == 0
     assert analise["ultima_leitura"] == "2026-10-24T12:00:00Z"
 
 
-def test_lote_em_transito_recebe_tudo_o_que_chegar_depois_do_inicio(cliente):
+def test_lote_em_transito_recebe_tudo_o_que_chegar_depois_do_inicio(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([(0, 1.0, 90.0, None), (100, 1.0, 90.0, None)])
+    gravar_leituras(banco, [nova_leitura(em(0), 1.0), nova_leitura(em(100), 1.0)])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
 
 
-def test_leitura_com_temperatura_impossivel_nao_entra_na_analise(cliente):
+def test_leitura_com_temperatura_impossivel_nao_entra_na_analise(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, None),
-        (1, 999.0, 90.0, None),   # acima de 80 °C
-        (2, -50.0, 90.0, None),   # abaixo de -40 °C
-        (3, 1.0, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(1), 999.0),   # acima de 80 °C
+        nova_leitura(em(2), -50.0),   # abaixo de -40 °C
+        nova_leitura(em(3), 1.0),
     ])
 
-    analise = cliente.get(f"/api/lotes/{lote['id']}").json()["analise"]
+    analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
     assert analise["graus_hora"] == 0
@@ -569,20 +507,20 @@ def test_leitura_com_temperatura_impossivel_nao_entra_na_analise(cliente):
 def test_encerrar_sem_corpo_usa_o_horario_atual(cliente):
     lote = criar_lote(cliente)
     antes = agora_utc() - timedelta(minutes=1)
-    resposta = cliente.post(f"/api/lotes/{lote['id']}/encerrar")
+    resposta = encerrar_lote(cliente, lote)
     depois = agora_utc() + timedelta(minutes=1)
 
     assert resposta.status_code == 200
     encerrado = resposta.json()
     assert encerrado["status"] == "encerrado"
     assert encerrado["id"] == lote["id"]
-    fim = datetime.strptime(encerrado["fim"], "%Y-%m-%dT%H:%M:%SZ")
+    fim = ler_data(encerrado["fim"])
     assert antes <= fim <= depois
 
 
 def test_encerrar_com_fim_informado(cliente):
     lote = criar_lote(cliente)
-    resposta = cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-25T18:00:00Z"})
+    resposta = encerrar_lote(cliente, lote, fim="2026-10-25T18:00:00Z")
 
     assert resposta.status_code == 200
     assert resposta.json()["fim"] == "2026-10-25T18:00:00Z"
@@ -594,20 +532,20 @@ def test_encerrar_com_fim_informado(cliente):
 
 def test_encerrar_com_fim_anterior_ao_inicio_devolve_400(cliente):
     lote = criar_lote(cliente)
-    resposta = cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-24T08:00:00Z"})
+    resposta = encerrar_lote(cliente, lote, fim="2026-10-24T08:00:00Z")
     assert resposta.status_code == 400
     assert "erro" in resposta.json()
 
     # o lote continua em transito
-    assert cliente.get(f"/api/lotes/{lote['id']}").json()["status"] == "em_transito"
+    assert detalhe_do_lote(cliente, lote)["status"] == "em_transito"
 
 
 def test_encerrar_duas_vezes_devolve_400(cliente):
     lote = criar_lote(cliente)
-    primeira = cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-25T18:00:00Z"})
+    primeira = encerrar_lote(cliente, lote, fim="2026-10-25T18:00:00Z")
     assert primeira.status_code == 200
 
-    segunda = cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-25T19:00:00Z"})
+    segunda = encerrar_lote(cliente, lote, fim="2026-10-25T19:00:00Z")
     assert segunda.status_code == 400
     assert "erro" in segunda.json()
 
@@ -633,74 +571,85 @@ def test_leituras_do_lote_sem_leituras_devolve_lista_vazia(cliente):
     assert resposta.json() == []
 
 
-def test_leituras_do_lote_vem_em_ordem_cronologica(cliente):
+def test_leituras_do_lote_vem_em_ordem_cronologica(cliente, banco):
     lote = criar_lote(cliente)
     # gravadas fora de ordem de proposito
-    gravar_leituras([
-        (2, 1.0, 90.0, None),
-        (0, 1.0, 90.0, None),
-        (1, 1.0, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(2), 1.0),
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(1), 1.0),
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    horas = [l["data_hora"] for l in leituras]
-    assert horas == ["2026-10-24T09:00:00Z", "2026-10-24T10:00:00Z", "2026-10-24T11:00:00Z"]
+    datas = []
+    for leitura in leituras_do_lote(cliente, lote):
+        datas.append(leitura["data_hora"])
+    assert datas == ["2026-10-24T09:00:00Z", "2026-10-24T10:00:00Z", "2026-10-24T11:00:00Z"]
 
 
-def test_leituras_do_lote_marcam_fora_da_faixa_de_temperatura(cliente):
+def test_leituras_do_lote_marcam_fora_da_faixa_de_temperatura(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, None),
-        (1, 6.4, 90.0, None),
-        (2, -0.5, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(1), 6.4),
+        nova_leitura(em(2), -0.5),
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    assert [l["fora_faixa_temp"] for l in leituras] == [False, True, True]
+    temp_fora = []
+    umidade_fora = []
+    for leitura in leituras_do_lote(cliente, lote):
+        temp_fora.append(leitura["fora_faixa_temp"])
+        umidade_fora.append(leitura["fora_faixa_umidade"])
+    assert temp_fora == [False, True, True]
     # umidade 90 esta dentro de 85-95
-    assert [l["fora_faixa_umidade"] for l in leituras] == [False, False, False]
+    assert umidade_fora == [False, False, False]
 
 
-def test_leituras_do_lote_marcam_fora_da_faixa_de_umidade(cliente):
+def test_leituras_do_lote_marcam_fora_da_faixa_de_umidade(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, None),
-        (1, 1.0, 82.0, None),
-        (2, 1.0, 97.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, umidade=90.0),
+        nova_leitura(em(1), 1.0, umidade=82.0),
+        nova_leitura(em(2), 1.0, umidade=97.0),
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    assert [l["fora_faixa_umidade"] for l in leituras] == [False, True, True]
-    assert [l["fora_faixa_temp"] for l in leituras] == [False, False, False]
+    temp_fora = []
+    umidade_fora = []
+    for leitura in leituras_do_lote(cliente, lote):
+        temp_fora.append(leitura["fora_faixa_temp"])
+        umidade_fora.append(leitura["fora_faixa_umidade"])
+    assert umidade_fora == [False, True, True]
+    assert temp_fora == [False, False, False]
 
 
-def test_leituras_do_lote_marcam_porta_aberta_acima_de_300_lux(cliente):
+def test_leituras_do_lote_marcam_porta_aberta_acima_de_300_lux(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, 5.0),
-        (1, 1.0, 90.0, 640.0),
-        (2, 1.0, 90.0, 300.0),
-        (3, 1.0, 90.0, 300.1),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, lux=5.0),
+        nova_leitura(em(1), 1.0, lux=640.0),
+        nova_leitura(em(2), 1.0, lux=300.0),
+        nova_leitura(em(3), 1.0, lux=300.1),
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    assert [l["porta_aberta"] for l in leituras] == [False, True, False, True]
+    porta_aberta = []
+    for leitura in leituras_do_lote(cliente, lote):
+        porta_aberta.append(leitura["porta_aberta"])
+    assert porta_aberta == [False, True, False, True]
 
 
-def test_leitura_com_luminosidade_nula_tem_porta_aberta_falsa(cliente):
+def test_leitura_com_luminosidade_nula_tem_porta_aberta_falsa(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([(0, 1.0, 90.0, None)])
+    gravar_leituras(banco, [nova_leitura(em(0), 1.0, lux=None)])
 
-    leitura = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()[0]
+    leitura = leituras_do_lote(cliente, lote)[0]
     assert leitura["luminosidade_lux"] is None
     assert leitura["porta_aberta"] is False
 
 
-def test_leitura_tem_todos_os_campos_do_contrato(cliente):
+def test_leitura_tem_todos_os_campos_do_contrato(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([(0, 6.4, 82.0, 640.0)])
+    gravar_leituras(banco, [nova_leitura(em(0), 6.4, umidade=82.0, lux=640.0)])
 
-    leitura = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()[0]
+    leitura = leituras_do_lote(cliente, lote)[0]
     assert leitura == {
         "data_hora": "2026-10-24T09:00:00Z",
         "temperatura_c": 6.4,
@@ -712,71 +661,77 @@ def test_leitura_tem_todos_os_campos_do_contrato(cliente):
     }
 
 
-def test_leituras_do_lote_usam_a_faixa_copiada_no_lote(cliente):
-    faixa = {"temp_min_c": 0.0, "temp_max_c": 8.0, "umidade_min_pct": 85.0, "umidade_max_pct": 95.0}
-    lote = criar_lote(cliente, faixa_segura=faixa)
-    gravar_leituras([(0, 6.4, 90.0, None)])  # 6,4 esta dentro de 0-8
+def test_leituras_do_lote_usam_a_faixa_copiada_no_lote(cliente, banco):
+    lote = criar_lote(cliente, faixa_segura=faixa_da_uva(temp_max_c=8.0))
+    gravar_leituras(banco, [nova_leitura(em(0), 6.4)])  # 6,4 esta dentro de 0-8
 
-    leitura = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()[0]
+    leitura = leituras_do_lote(cliente, lote)[0]
     assert leitura["fora_faixa_temp"] is False
 
 
-def test_leituras_do_lote_nao_incluem_as_de_fora_do_intervalo(cliente):
+def test_leituras_do_lote_nao_incluem_as_de_fora_do_intervalo(cliente, banco):
     lote = criar_lote(cliente)
-    cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-24T11:00:00Z"})
-    gravar_leituras([
-        (-1, 1.0, 90.0, None),   # antes do inicio
-        (0, 1.0, 90.0, None),
-        (2, 1.0, 90.0, None),
-        (3, 1.0, 90.0, None),    # depois do fim
+    encerrar_lote(cliente, lote, fim="2026-10-24T11:00:00Z")
+    gravar_leituras(banco, [
+        nova_leitura(em(-1), 1.0),   # antes do inicio
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(2), 1.0),
+        nova_leitura(em(3), 1.0),    # depois do fim
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    assert len(leituras) == 2
+    assert len(leituras_do_lote(cliente, lote)) == 2
 
 
-def test_leituras_descartadas_pela_auditoria_nao_aparecem(cliente):
+def test_leituras_descartadas_pela_auditoria_nao_aparecem(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, None),
-        (1, -41.0, 90.0, None),
-        (2, 81.0, 90.0, None),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0),
+        nova_leitura(em(1), -41.0),
+        nova_leitura(em(2), 81.0),
     ])
 
-    leituras = cliente.get(f"/api/lotes/{lote['id']}/leituras").json()
-    assert len(leituras) == 1
+    assert len(leituras_do_lote(cliente, lote)) == 1
 
 
 # ---------- formato das datas ----------
 
-def test_datas_do_json_terminam_em_z(cliente):
+def test_datas_do_json_terminam_em_z(cliente, banco):
     lote = criar_lote(cliente)
-    gravar_leituras([
-        (0, 1.0, 90.0, 5.0),
-        (1, 1.0, 90.0, 600.0),
-        (2, 1.0, 90.0, 5.0),
+    gravar_leituras(banco, [
+        nova_leitura(em(0), 1.0, lux=5.0),
+        nova_leitura(em(1), 1.0, lux=600.0),
+        nova_leitura(em(2), 1.0, lux=5.0),
     ])
-    cliente.post(f"/api/lotes/{lote['id']}/encerrar", json={"fim": "2026-10-24T20:00:00Z"})
+    encerrar_lote(cliente, lote, fim="2026-10-24T20:00:00Z")
 
-    respostas = [
-        cliente.get("/api/lotes").json(),
-        cliente.get(f"/api/lotes/{lote['id']}").json(),
-        cliente.get(f"/api/lotes/{lote['id']}/leituras").json(),
-    ]
-    for corpo in respostas:
-        datas = achar_datas(corpo)
-        assert datas, "a resposta deveria ter alguma data"
-        for data in datas:
-            assert data.endswith("Z"), data
-            # ISO 8601 sem fracao de segundo
-            datetime.strptime(data, "%Y-%m-%dT%H:%M:%SZ")
+    # GET /api/lotes
+    item_da_lista = cliente.get("/api/lotes").json()[0]
+    conferir_data_utc(item_da_lista["inicio"])
+    conferir_data_utc(item_da_lista["fim"])
+
+    # GET /api/lotes/<id>
+    detalhe = detalhe_do_lote(cliente, lote)
+    analise = detalhe["analise"]
+    assert len(analise["eventos_porta"]) == 1
+    evento = analise["eventos_porta"][0]
+    conferir_data_utc(detalhe["inicio"])
+    conferir_data_utc(detalhe["fim"])
+    conferir_data_utc(analise["primeira_leitura"])
+    conferir_data_utc(analise["ultima_leitura"])
+    conferir_data_utc(evento["inicio"])
+    conferir_data_utc(evento["fim"])
+
+    # GET /api/lotes/<id>/leituras
+    leituras = leituras_do_lote(cliente, lote)
+    assert len(leituras) == 3
+    for leitura in leituras:
+        conferir_data_utc(leitura["data_hora"])
 
 
 def test_datas_do_lote_criado_e_encerrado_sem_informar_horario_terminam_em_z(cliente):
-    corpo = {k: v for k, v in LOTE_UVA.items() if k != "inicio"}
-    criado = cliente.post("/api/lotes", json=corpo).json()
+    criado = cliente.post("/api/lotes", json=sem_campo(LOTE_UVA, "inicio")).json()
     assert criado["inicio"].endswith("Z")
 
-    encerrado = cliente.post(f"/api/lotes/{criado['id']}/encerrar").json()
+    encerrado = encerrar_lote(cliente, criado).json()
     assert encerrado["inicio"].endswith("Z")
     assert encerrado["fim"].endswith("Z")

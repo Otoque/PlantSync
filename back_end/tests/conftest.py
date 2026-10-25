@@ -15,7 +15,8 @@ from services.frutas import cadastrar_frutas_iniciais
 
 
 @pytest.fixture
-def cliente():
+def banco():
+    """Cria o banco de teste (com uva e manga) e devolve a fabrica de sessoes dele."""
     # StaticPool mantem uma unica conexao, senao cada conexao veria
     # um banco em memoria diferente (e vazio).
     engine = create_engine(
@@ -27,9 +28,17 @@ def cliente():
     Base.metadata.create_all(engine)
     with SessaoTeste() as sessao:
         cadastrar_frutas_iniciais(sessao)
+    return SessaoTeste
 
+
+@pytest.fixture
+def cliente(banco):
+    """Cliente HTTP da API ligado ao banco de teste."""
+
+    # O FastAPI chama esta funcao a cada requisicao para obter uma sessao;
+    # ela entrega a sessao no yield e a fecha quando a requisicao termina.
     def abrir_sessao_teste():
-        sessao = SessaoTeste()
+        sessao = banco()
         try:
             yield sessao
         finally:
