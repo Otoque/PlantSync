@@ -1,14 +1,19 @@
 # Contrato da API do PlantSync
 
-Versão 0.1 (rascunho, 25/10/2026). Este documento descreve o que o backend entrega ao
+Versão 0.2 (rascunho, 25/10/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
 
 ## Convenções
 
 - Endereço local: `http://localhost:8000`. Todas as rotas começam com `/api`.
 - Corpo das requisições e respostas em JSON, codificação UTF-8.
-- Datas e horas em ISO 8601, sempre em UTC com o sufixo `Z`
-  (ex.: `2026-10-25T17:30:00Z`). O painel converte para o horário de Recife.
+- CORS liberado para o painel em desenvolvimento: `http://localhost:5500` e
+  `http://127.0.0.1:5500`. Outras origens entram pela variável `CORS_ORIGENS`
+  (lista separada por vírgula).
+- Datas e horas dos campos JSON em ISO 8601, sempre em UTC com o sufixo `Z`
+  (ex.: `2026-10-25T17:30:00Z`). Quem converte para `America/Recife` (UTC−3) é o
+  painel. A única exceção é o texto livre do campo `mensagem` dos alertas, que já vem
+  escrito no horário de Recife para ser lido por gente.
 - Temperatura em °C, umidade relativa em %, luminosidade em lux.
 - Campo sem valor vem como `null` (ex.: luminosidade quando o sensor não mandou).
 - Erros têm sempre o mesmo formato, com o código HTTP correspondente:
@@ -157,6 +162,13 @@ Resposta `400`:
 { "erro": "Fruta 'abacaxi' não cadastrada. Use: uva, manga." }
 ```
 
+Regra de um lote ativo: existe um único canal do ThingSpeak (um sensor), então só pode
+haver um lote `em_transito` por vez. Criar outro antes de encerrar o atual devolve `400`:
+
+```json
+{ "erro": "O lote 3 ainda está em trânsito. Encerre-o antes de cadastrar outro." }
+```
+
 ---
 
 ### GET `/api/lotes/{id}`
@@ -200,6 +212,11 @@ O lote com a análise completa da viagem até agora.
   }
 }
 ```
+
+`amostras_fora_faixa` conta só a temperatura: leituras abaixo de `temp_min_c` ou acima
+de `temp_max_c` da fruta (mesmo critério do `fora_faixa_termica` do
+`eda_plantsync.py`). Umidade fora da faixa aparece por leitura em
+`GET /api/lotes/{id}/leituras`, campo `fora_faixa_umidade`, e não entra nessa conta.
 
 Lote sem leituras: `analise.amostras` é `0`, `nivel` é `SEM_DADOS`, os campos de
 temperatura e as datas de leitura vêm `null` e `eventos_porta` vem vazio.
@@ -269,7 +286,7 @@ Alertas dos lotes em trânsito, do mais grave para o mais leve. Dois tipos:
     "fruta": "uva",
     "tipo": "porta_aberta",
     "nivel": "AMARELO",
-    "mensagem": "Lote 3 (uva): porta aberta por 40 min às 21:00 de 24/10.",
+    "mensagem": "Lote 3 (uva): porta aberta por 40 min às 18:00 de 24/10.",
     "data_hora": "2026-10-24T21:00:20Z"
   }
 ]
@@ -277,8 +294,9 @@ Alertas dos lotes em trânsito, do mais grave para o mais leve. Dois tipos:
 
 Ação no texto da mensagem por nível: `AMARELO` → "priorizar na expedição",
 `LARANJA` → "inspecionar antes do embarque", `VERMELHO` → "redirecionar para mercado
-interno ou processamento". O horário dentro da mensagem de porta aberta já vem no fuso
-de Recife.
+interno ou processamento". O horário escrito dentro da mensagem de porta aberta já vem
+no fuso de Recife (no exemplo, `21:00:20Z` vira "18:00"); o campo `data_hora` continua
+em UTC.
 
 ---
 
@@ -313,6 +331,13 @@ Mapeamento do canal 3493443, conforme o `README.md`:
 | `field1` | Temperatura (°C) | Graus-hora, faixa segura. |
 | `field2` | Umidade relativa (%) | Faixa segura. |
 | `field5` | Luminosidade (lux) | Porta aberta. |
+
+## Limitações conhecidas
+
+- **Um sensor, um lote por vez.** As leituras vão para o lote pelo horário, e há um só
+  canal do ThingSpeak. Por isso a API aceita apenas um lote em trânsito de cada vez
+  (ver `POST /api/lotes`). Para acompanhar cargas simultâneas, cada lote precisaria do
+  seu próprio sensor e canal, e o lote passaria a guardar o número do canal.
 
 ## Fora deste contrato (por enquanto)
 
