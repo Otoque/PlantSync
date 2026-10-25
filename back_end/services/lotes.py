@@ -14,7 +14,7 @@ def buscar_lote(sessao, lote_id):
     return lote
 
 
-def listar_lotes(sessao):
+def todos_os_lotes(sessao):
     """Todos os lotes, do mais recente para o mais antigo."""
     return sessao.query(Lote).order_by(Lote.inicio.desc()).all()
 
@@ -87,7 +87,7 @@ def criar_lote(sessao, dados):
     return lote
 
 
-def encerrar_lote(sessao, lote, fim):
+def registrar_fim_do_lote(sessao, lote, fim):
     """Marca a chegada do lote. Sem fim informado, vale o horario atual."""
     if lote.fim is not None:
         raise ErroDeRegra(f"O lote {lote.id} já foi encerrado.")

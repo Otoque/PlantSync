@@ -1,6 +1,9 @@
 """
 Constantes e funcoes auxiliares usadas pelos testes da API
 (test_api_frutas_lotes.py e test_api_alertas_sincronizacao.py).
+
+Os testes importam com "from auxiliares import ..." porque o pytest
+coloca a pasta tests/ no caminho de importacao.
 """
 
 from datetime import datetime, timedelta, timezone

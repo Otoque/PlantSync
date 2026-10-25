@@ -45,7 +45,7 @@ def validar_faixa(faixa):
         raise ErroDeRegra("umidade_min_pct precisa ser menor que umidade_max_pct.")
 
 
-def listar_frutas(sessao):
+def todas_as_frutas(sessao):
     return sessao.query(Fruta).order_by(Fruta.id).all()
 
 

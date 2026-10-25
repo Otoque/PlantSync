@@ -1,5 +1,5 @@
 """
-Erros que os services levantam quando algo da errado.
+Erros que os services levantam quando uma regra falha ou algo nao funciona.
 
 O app.py transforma cada um na resposta HTTP certa, entao as rotas
 nao precisam de try/except:
