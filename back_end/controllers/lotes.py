@@ -14,14 +14,14 @@ router = APIRouter(prefix="/api/lotes", tags=["lotes"])
 def listar_lotes(sessao: Session = Depends(abrir_sessao)):
     resposta = []
     for lote in lotes.listar_lotes(sessao):
-        resposta.append(lotes.lote_para_json(lote, lotes.buscar_e_analisar(sessao, lote)))
+        resposta.append(lotes.lote_resumo_json(sessao, lote))
     return resposta
 
 
 @router.post("", status_code=201)
 def cadastrar_lote(dados: LoteNovo, sessao: Session = Depends(abrir_sessao)):
     lote = lotes.criar_lote(sessao, dados)
-    return lotes.lote_para_json(lote, lotes.buscar_e_analisar(sessao, lote))
+    return lotes.lote_resumo_json(sessao, lote)
 
 
 @router.get("/{lote_id}")
@@ -39,7 +39,7 @@ def encerrar_lote(
 ):
     lote = lotes.buscar_lote(sessao, lote_id)
     lote = lotes.encerrar_lote(sessao, lote, dados.fim)
-    return lotes.lote_para_json(lote, lotes.buscar_e_analisar(sessao, lote))
+    return lotes.lote_resumo_json(sessao, lote)
 
 
 @router.get("/{lote_id}/leituras")

@@ -1,7 +1,7 @@
 """Regras das frutas e de suas faixas seguras."""
 
 from models.tabelas import Fruta
-from services.erros import ErroDeRegra, NaoEncontrado
+from services.erros import ErroDeRegra, ErroNaoEncontrado
 
 # Valores gravados na primeira execucao. Todos podem ser editados pela API.
 # Fontes completas em docs/api-contrato.md, secao Referencias.
@@ -52,7 +52,7 @@ def listar_frutas(sessao):
 def buscar_fruta(sessao, fruta_id):
     fruta = sessao.get(Fruta, fruta_id)
     if fruta is None:
-        raise NaoEncontrado(f"Fruta '{fruta_id}' não encontrada.")
+        raise ErroNaoEncontrado(f"Fruta '{fruta_id}' não encontrada.")
     return fruta
 
 

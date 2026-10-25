@@ -2,6 +2,8 @@
 
 from config import CANAL_THINGSPEAK, CHAVE_LEITURA_THINGSPEAK
 from models.tabelas import Leitura
+# Importamos o modulo (e nao a funcao) para os testes poderem trocar
+# thingspeak.buscar_leituras por uma versao falsa, sem internet.
 from services import thingspeak
 from services.analise import temperatura_valida
 from services.datas import para_utc

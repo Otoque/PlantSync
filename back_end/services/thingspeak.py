@@ -10,11 +10,9 @@ from datetime import datetime
 
 import requests
 
+from services.erros import ErroThingSpeak
+
 URL_FEEDS = "https://api.thingspeak.com/channels/{canal}/feeds.json"
-
-
-class ErroThingSpeak(Exception):
-    """O ThingSpeak nao respondeu ou respondeu com erro."""
 
 
 def converter_numero(valor):

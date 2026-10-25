@@ -21,9 +21,8 @@ from starlette.exceptions import HTTPException
 from config import CORS_ORIGENS
 from controllers import frutas, lotes, monitoramento
 from models.banco import Base, SessaoLocal, engine
-from services.erros import ErroDeRegra, NaoEncontrado
+from services.erros import ErroDeRegra, ErroNaoEncontrado, ErroThingSpeak
 from services.frutas import cadastrar_frutas_iniciais
-from services.thingspeak import ErroThingSpeak
 
 
 # Formato pedido pelo FastAPI para rodar algo quando o servidor liga:
@@ -53,6 +52,28 @@ app.include_router(monitoramento.router)
 
 # Todos os erros saem no formato do contrato: {"erro": "mensagem"}.
 
+# Traducao dos erros mais comuns do FastAPI e do Pydantic, que vem em ingles.
+# Erro que nao estiver aqui sai com a mensagem original.
+MENSAGENS_HTTP = {
+    404: "Rota não encontrada.",
+    405: "Método não permitido nesta rota.",
+}
+MENSAGENS_VALIDACAO = {
+    "missing": "campo obrigatório",
+    "float_parsing": "precisa ser um número",
+    "float_type": "precisa ser um número",
+    "int_parsing": "precisa ser um número inteiro",
+    "string_type": "precisa ser um texto",
+    "string_too_short": "não pode ficar vazio",
+    "string_pattern_mismatch": "formato inválido",
+    "greater_than_equal": "valor abaixo do mínimo permitido",
+    "less_than_equal": "valor acima do máximo permitido",
+    "datetime_parsing": "data inválida (use o formato 2026-10-24T09:00:00Z)",
+    "datetime_from_date_parsing": "data inválida (use o formato 2026-10-24T09:00:00Z)",
+    "json_invalid": "JSON inválido",
+}
+
+
 def resposta_de_erro(codigo, mensagem):
     return JSONResponse(status_code=codigo, content={"erro": mensagem})
 
@@ -62,8 +83,8 @@ def tratar_erro_de_regra(request: Request, erro: ErroDeRegra):
     return resposta_de_erro(400, str(erro))
 
 
-@app.exception_handler(NaoEncontrado)
-def tratar_nao_encontrado(request: Request, erro: NaoEncontrado):
+@app.exception_handler(ErroNaoEncontrado)
+def tratar_nao_encontrado(request: Request, erro: ErroNaoEncontrado):
     return resposta_de_erro(404, str(erro))
 
 
@@ -74,13 +95,19 @@ def tratar_erro_thingspeak(request: Request, erro: ErroThingSpeak):
 
 @app.exception_handler(HTTPException)
 def tratar_erro_http(request: Request, erro: HTTPException):
-    return resposta_de_erro(erro.status_code, erro.detail)
+    mensagem = MENSAGENS_HTTP.get(erro.status_code, erro.detail)
+    return resposta_de_erro(erro.status_code, mensagem)
 
 
 @app.exception_handler(RequestValidationError)
 def tratar_erro_validacao(request: Request, erro: RequestValidationError):
-    """Mostra so o primeiro campo com problema. Ex.: "fruta: Field required"."""
+    """Mostra so o primeiro campo com problema. Ex.: "fruta: campo obrigatório"."""
     primeiro = erro.errors()[0]
+    mensagem = MENSAGENS_VALIDACAO.get(primeiro["type"], primeiro["msg"])
+
+    # JSON quebrado nao tem campo: o "loc" traz a posicao do caractere.
+    if primeiro["type"] == "json_invalid":
+        return resposta_de_erro(400, mensagem + ".")
 
     # "loc" e o caminho do campo, ex.: ["body", "faixa_segura", "temp_min_c"].
     # Tiramos o "body" e juntamos o resto com ponto: "faixa_segura.temp_min_c".
@@ -89,7 +116,7 @@ def tratar_erro_validacao(request: Request, erro: RequestValidationError):
         if parte != "body":
             partes.append(str(parte))
     campo = ".".join(partes)
-    return resposta_de_erro(400, f"{campo}: {primeiro['msg']}")
+    return resposta_de_erro(400, f"{campo}: {mensagem}")
 
 
 @app.get("/api/saude", tags=["saude"])
