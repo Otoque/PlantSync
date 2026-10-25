@@ -1,6 +1,6 @@
 # Contrato da API do PlantSync
 
-Versão 0.2 (rascunho, 25/10/2026). Este documento descreve o que o backend entrega ao
+Versão 0.3 (rascunho, 25/10/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
 
 ## Convenções
@@ -27,7 +27,7 @@ painel web. Qualquer mudança aqui precisa ser combinada com a frente do fronten
 | 200 | Consulta ou ação concluída. |
 | 201 | Lote criado. |
 | 400 | Dado inválido no corpo da requisição. |
-| 404 | Lote inexistente. |
+| 404 | Lote ou fruta inexistente. |
 | 502 | O ThingSpeak não respondeu ou respondeu com erro. |
 
 ## Conceitos
@@ -39,7 +39,11 @@ painel web. Qualquer mudança aqui precisa ser combinada com a frente do fronten
 - **Associação leitura → lote**: uma leitura pertence ao lote quando o horário dela está
   entre o `inicio` e o `fim` do lote. Lote sem `fim` (ainda em trânsito) recebe tudo
   que chegar depois do `inicio`.
-- **Faixa segura**: limites de temperatura e umidade de cada fruta, com a fonte.
+- **Faixa segura**: limites de temperatura e umidade de uma fruta, com a fonte. Fica
+  cadastrada no banco e pode ser editada pela API; não há valor fixo no código.
+- **Cópia da faixa no lote**: ao criar um lote, a faixa da fruta é copiada para ele.
+  Editar a fruta depois só vale para os lotes novos; os lotes já cadastrados continuam
+  sendo analisados com a faixa que tinham, e o histórico não muda.
 - **Graus-hora (°C·h)**: soma, ao longo da viagem, de quanto a temperatura passou do
   limite superior da faixa, multiplicado pelo tempo em que ficou assim. Exemplo: 2 °C
   acima do limite durante 3 h somam 6 °C·h.
@@ -62,6 +66,8 @@ painel web. Qualquer mudança aqui precisa ser combinada com a frente do fronten
 |---|---|---|
 | GET | `/api/saude` | Verificar se a API está no ar. |
 | GET | `/api/frutas` | Listar as frutas e suas faixas seguras. |
+| POST | `/api/frutas` | Cadastrar uma fruta com sua faixa. |
+| PUT | `/api/frutas/{id}` | Editar o nome, a faixa ou a fonte de uma fruta. |
 | GET | `/api/lotes` | Listar os lotes com o resumo de risco. |
 | POST | `/api/lotes` | Cadastrar um lote. |
 | GET | `/api/lotes/{id}` | Ver um lote com a análise completa. |
@@ -82,7 +88,7 @@ painel web. Qualquer mudança aqui precisa ser combinada com a frente do fronten
 
 ### GET `/api/frutas`
 
-Os valores definitivos virão da fonte citada no campo `fonte`.
+Valores iniciais que o backend grava na primeira execução (todos editáveis depois):
 
 ```json
 [
@@ -90,10 +96,10 @@ Os valores definitivos virão da fonte citada no campo `fonte`.
     "id": "uva",
     "nome": "Uva de mesa",
     "temp_min_c": 0.0,
-    "temp_max_c": 4.0,
+    "temp_max_c": 2.0,
     "umidade_min_pct": 85.0,
     "umidade_max_pct": 95.0,
-    "fonte": "Referência bibliográfica da faixa"
+    "fonte": "Embrapa Semiárido, Cultivo da videira (Lima, 2016)"
   },
   {
     "id": "manga",
@@ -102,10 +108,54 @@ Os valores definitivos virão da fonte citada no campo `fonte`.
     "temp_max_c": 13.0,
     "umidade_min_pct": 85.0,
     "umidade_max_pct": 90.0,
-    "fonte": "Referência bibliográfica da faixa"
+    "fonte": "USDA, Agriculture Handbook 66 (Paull e Chen, 2016); Embrapa Semiárido, Cultivo da mangueira (Assis, 2015)"
   }
 ]
 ```
+
+> **Em decisão:** o teto inicial da uva. A Embrapa recomenda 0 °C (uva sem semente) e
+> 2 °C (com semente); o slide 7 usa 4 °C, valor sem fonte encontrada. O contrato não
+> muda com a escolha, só o valor inicial. Ver [Referências](#referências).
+
+---
+
+### POST `/api/frutas`
+
+Corpo (todos os campos obrigatórios):
+
+```json
+{
+  "id": "melao",
+  "nome": "Melão",
+  "temp_min_c": 2.0,
+  "temp_max_c": 5.0,
+  "umidade_min_pct": 90.0,
+  "umidade_max_pct": 95.0,
+  "fonte": "Referência da faixa"
+}
+```
+
+- `id`: identificador curto, só letras minúsculas sem acento, números, `-` ou `_`.
+  Não pode repetir um que já exista.
+- `temp_min_c` menor que `temp_max_c`; `umidade_min_pct` menor que
+  `umidade_max_pct`, as duas entre 0 e 100.
+
+Resposta `201`: a fruta criada. Resposta `400` se algum campo for inválido:
+
+```json
+{ "erro": "temp_min_c precisa ser menor que temp_max_c." }
+```
+
+---
+
+### PUT `/api/frutas/{id}`
+
+Mesmo corpo do `POST`, sem o campo `id`. Todos os campos são obrigatórios e substituem
+os anteriores. Resposta `200`: a fruta atualizada. Resposta `400` nas mesmas regras do
+`POST`, `404` se a fruta não existir.
+
+A edição não altera os lotes já cadastrados (ver "Cópia da faixa no lote" em
+Conceitos). Não há rota para apagar fruta, porque lotes antigos apontam para ela.
 
 ---
 
@@ -124,6 +174,12 @@ Lista do mais recente para o mais antigo. O campo `risco` é um resumo; o detalh
     "inicio": "2026-10-24T09:00:00Z",
     "fim": null,
     "status": "em_transito",
+    "faixa_segura": {
+      "temp_min_c": 0.0,
+      "temp_max_c": 2.0,
+      "umidade_min_pct": 85.0,
+      "umidade_max_pct": 95.0
+    },
     "risco": {
       "nivel": "LARANJA",
       "graus_hora": 24.3
@@ -132,7 +188,8 @@ Lista do mais recente para o mais antigo. O campo `risco` é um resumo; o detalh
 ]
 ```
 
-`status` vale `em_transito` (sem `fim`) ou `encerrado`. Lote sem nenhuma leitura vem
+`status` vale `em_transito` (sem `fim`) ou `encerrado`. `faixa_segura` é a cópia
+gravada no lote quando ele foi criado. Lote sem nenhuma leitura vem
 com `risco.nivel` igual a `SEM_DADOS` e `graus_hora` igual a `0`.
 
 ---
@@ -153,6 +210,9 @@ Corpo:
 - `fruta`: obrigatório, um dos `id` de `GET /api/frutas`.
 - `origem` e `porto_destino`: obrigatórios, texto livre.
 - `inicio`: opcional. Se não vier, vale o horário atual.
+- `faixa_segura`: opcional, para um lote com faixa própria (ex.: cultivar mais
+  sensível). Mesmos quatro campos de `GET /api/frutas`, com as mesmas regras de
+  validação. Se não vier, o lote copia a faixa atual da fruta.
 
 Resposta `201`: o lote criado, no mesmo formato de um item de `GET /api/lotes`.
 
@@ -186,7 +246,7 @@ O lote com a análise completa da viagem até agora.
   "status": "em_transito",
   "faixa_segura": {
     "temp_min_c": 0.0,
-    "temp_max_c": 4.0,
+    "temp_max_c": 2.0,
     "umidade_min_pct": 85.0,
     "umidade_max_pct": 95.0
   },
@@ -278,7 +338,7 @@ Alertas dos lotes em trânsito, do mais grave para o mais leve. Dois tipos:
     "fruta": "uva",
     "tipo": "risco_termico",
     "nivel": "LARANJA",
-    "mensagem": "Lote 3 (uva) acumulou 24 °C·h acima de 4 °C: inspecionar antes do embarque.",
+    "mensagem": "Lote 3 (uva) acumulou 24 °C·h acima de 2 °C: inspecionar antes do embarque.",
     "data_hora": "2026-10-25T17:29:40Z"
   },
   {
@@ -342,3 +402,31 @@ Mapeamento do canal 3493443, conforme o `README.md`:
 ## Fora deste contrato (por enquanto)
 
 - Login e perfis (RF07): aguardando decisão de escopo.
+
+## Referências
+
+ASSIS, J. S. de. Colheita e pós-colheita. In: EMBRAPA SEMIÁRIDO. **Cultivo da
+mangueira**. 3. ed. Petrolina: Embrapa Semiárido, 2015. (Sistema de Produção, 2).
+Disponível em:
+https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/1031747/1/Cultivo-da-Mangueira.pdf.
+Acesso em: 25 out. 2026.
+
+CRISOSTO, C. H.; SMILANICK, J. L. Table grape. In: GROSS, K. C.; WANG, C. Y.;
+SALTVEIT, M. (ed.). **The commercial storage of fruits, vegetables, and florist and
+nursery stocks**. Washington, DC: USDA, Agricultural Research Service, 2016.
+(Agriculture Handbook, 66). p. 344-346. Disponível em:
+https://www.ars.usda.gov/is/np/CommercialStorage/CommercialStorage.pdf. Acesso em:
+25 out. 2026.
+
+LIMA, M. A. C. de. Colheita e pós-colheita. In: EMBRAPA SEMIÁRIDO. **Cultivo da
+videira**. 2. ed. Petrolina: Embrapa Semiárido, 2016. (Sistema de Produção, 1).
+Disponível em:
+https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/884525/1/Cultivo-da-Videira.pdf.
+Acesso em: 25 out. 2026.
+
+PAULL, R. E.; CHEN, C. C. Mango. In: GROSS, K. C.; WANG, C. Y.; SALTVEIT, M. (ed.).
+**The commercial storage of fruits, vegetables, and florist and nursery stocks**.
+Washington, DC: USDA, Agricultural Research Service, 2016. (Agriculture Handbook, 66).
+p. 408-409. Disponível em:
+https://www.ars.usda.gov/is/np/CommercialStorage/CommercialStorage.pdf. Acesso em:
+25 out. 2026.
