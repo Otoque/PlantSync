@@ -54,12 +54,14 @@ def temperatura_valida(temperatura):
 
 
 def porta_aberta(luminosidade):
+    """Sem medida de luz (None) nao conta como porta aberta."""
     if luminosidade is None:
         return False
     return luminosidade > LUX_PORTA_ABERTA
 
 
 def fora_da_faixa(valor, minimo, maximo):
+    """Sem medida (None) nao conta como fora da faixa."""
     if valor is None:
         return False
     return valor < minimo or valor > maximo

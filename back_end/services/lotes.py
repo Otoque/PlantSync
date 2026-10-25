@@ -3,14 +3,14 @@
 from models.tabelas import Fruta, Leitura, Lote
 from services.analise import analisar_lote, fora_da_faixa, limpar_leituras, porta_aberta
 from services.datas import agora_utc, formatar_utc, para_utc
-from services.erros import ErroDeRegra, NaoEncontrado
+from services.erros import ErroDeRegra, ErroNaoEncontrado
 from services.frutas import validar_faixa
 
 
 def buscar_lote(sessao, lote_id):
     lote = sessao.get(Lote, lote_id)
     if lote is None:
-        raise NaoEncontrado(f"Lote {lote_id} não encontrado.")
+        raise ErroNaoEncontrado(f"Lote {lote_id} não encontrado.")
     return lote
 
 
@@ -24,8 +24,11 @@ def lote_em_transito(sessao):
     return sessao.query(Lote).filter(Lote.fim.is_(None)).first()
 
 
-def fruta_do_lote(sessao, fruta_id):
-    """Busca a fruta escolhida para o lote; se nao existir, diz quais existem."""
+def fruta_escolhida(sessao, fruta_id):
+    """
+    Busca a fruta escolhida no cadastro do lote; se nao existir, diz quais existem.
+    Da 400 (e nao 404, como buscar_fruta) porque o id veio no corpo do cadastro.
+    """
     fruta = sessao.get(Fruta, fruta_id)
     if fruta is None:
         ids = []
@@ -46,12 +49,19 @@ def escolher_faixa(fruta, faixa_propria):
     return faixa_propria
 
 
+def inicio_do_lote(dados):
+    """Horario de inicio informado no cadastro, ou o horario atual."""
+    if dados.inicio is None:
+        return agora_utc()
+    return para_utc(dados.inicio)
+
+
 def criar_lote(sessao, dados):
     """
     Cadastra um lote. O lote guarda uma copia da faixa segura, para que
     editar a fruta depois nao mude a analise dele.
     """
-    fruta = fruta_do_lote(sessao, dados.fruta)
+    fruta = fruta_escolhida(sessao, dados.fruta)
 
     # Existe um so sensor (um canal), entao so um lote viaja por vez.
     atual = lote_em_transito(sessao)
@@ -61,15 +71,11 @@ def criar_lote(sessao, dados):
         )
 
     faixa = escolher_faixa(fruta, dados.faixa_segura)
-    inicio = agora_utc()
-    if dados.inicio is not None:
-        inicio = para_utc(dados.inicio)
-
     lote = Lote(
         fruta_id=fruta.id,
         origem=dados.origem,
         porto_destino=dados.porto_destino,
-        inicio=inicio,
+        inicio=inicio_do_lote(dados),
         fim=None,
         temp_min_c=faixa.temp_min_c,
         temp_max_c=faixa.temp_max_c,
@@ -169,6 +175,11 @@ def lote_para_json(lote, analise):
         "graus_hora": analise["graus_hora"],
     }
     return resposta
+
+
+def lote_resumo_json(sessao, lote):
+    """Busca a analise do lote e devolve o formato curto (lote + risco)."""
+    return lote_para_json(lote, buscar_e_analisar(sessao, lote))
 
 
 def lote_detalhado_json(lote, analise):
