@@ -52,7 +52,7 @@ da qual decorre a recomendação operacional sobre o lote.
 
 ```
 PlantSync/
-├── firmware/plantsync-edge/    Módulo de borda (ESP32-C3)
+├── hardware/plantsync-edge/    Módulo de borda (ESP32-C3)
 │   ├── main.ino                Firmware v2 — 3 sensores, Fail-Fast, JSON
 │   ├── diagram.json            Circuito para o simulador Wokwi
 │   ├── credentials.h.example   Modelo de credenciais (credentials.h é ignorado)
@@ -63,10 +63,18 @@ PlantSync/
 │   ├── requirements.txt
 │   ├── data/                   CSV exportado do ThingSpeak (não versionado)
 │   └── outputs/                Gráficos e relatórios gerados
+├── back_end/                   API do painel (FastAPI + SQLite)
+│   ├── app.py                  Ponto de entrada da API
+│   ├── config.py               Configurações (variáveis de ambiente)
+│   ├── controllers/            Rotas HTTP
+│   ├── models/                 Tabelas do banco e formato das entradas
+│   ├── services/               Análise, alertas, ThingSpeak
+│   └── tests/                  Testes automatizados (pytest)
 ├── api/
 │   └── PlantSync.postman_collection.json   Testes de contrato da API
 └── docs/
     ├── CHECKPOINT-01.md        Documento do checkpoint
+    ├── api-contrato.md         Contrato da API do backend
     ├── CHECKPOINT-01.html      Versão para gerar o PDF da entrega
     └── img/                    Registro fotográfico
 ```
@@ -94,7 +102,7 @@ Canal público no ThingSpeak: **[3493443](https://thingspeak.mathworks.com/chann
 ### Firmware — placa real
 
 1. Arduino IDE com suporte à placa **ESP32-C3** instalado.
-2. Instale as bibliotecas de `firmware/plantsync-edge/libraries.txt`.
+2. Instale as bibliotecas de `hardware/plantsync-edge/libraries.txt`.
 3. Copie `credentials.h.example` para `credentials.h` e preencha SSID, senha e a
    Write API Key do canal.
 4. Compile e grave.
@@ -112,6 +120,39 @@ com o DHT11 da montagem física.
 
 No simulador, arraste o sensor de luz para simular a abertura da porta e o
 potenciômetro para simular acúmulo de água. Os alertas acendem o LED.
+
+### Backend — API do painel
+
+Requer Python 3.10 ou mais novo (testado no 3.14). Na pasta `back_end`:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8000
+```
+
+- A API sobe em `http://localhost:8000`. A página `http://localhost:8000/docs`
+  lista todas as rotas e permite testá-las pelo navegador.
+- Na primeira execução é criado o banco `back_end/plantsync.db` (SQLite, fora do git)
+  com as frutas iniciais.
+- Para trazer as leituras do ThingSpeak: `POST /api/sincronizar` (pela página `/docs`
+  ou `curl -X POST http://localhost:8000/api/sincronizar`).
+- Configurações opcionais (banco, canal, origens liberadas no CORS) ficam em
+  `back_end/.env`; o modelo é `back_end/.env.example`.
+- Testes: `python -m pytest -q`, dentro de `back_end`.
+
+Rotas, exemplos de JSON e regras estão em [`docs/api-contrato.md`](docs/api-contrato.md).
+
+**Faixas seguras iniciais** (editáveis pela API, `PUT /api/frutas/{id}`):
+
+| Fruta | Temperatura | Umidade relativa | Fonte |
+|---|---|---|---|
+| Uva de mesa | 0 a 2 °C | 85 a 95% | Embrapa Semiárido, *Cultivo da videira* (Lima, 2016) |
+| Manga | 10 a 13 °C | 85 a 90% | USDA, *Agriculture Handbook 66* (Paull; Chen, 2016); Embrapa Semiárido, *Cultivo da mangueira* (Assis, 2015) |
+
+Referências completas no fim do contrato da API. Os limiares de risco em graus-hora
+(5, 20 e 50 °C·h) foram definidos pela equipe e ainda serão validados com um produtor.
 
 ### Testes de contrato da API
 
