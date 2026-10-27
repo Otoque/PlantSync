@@ -140,22 +140,55 @@
   umidade relativa do ar em porcentagem.
 </p>
 
-<p class="cap">Tabela 2 — Última amostra registrada no canal</p>
+<p class="cap">Tabela 2 — Série de telemetria registrada no canal em 28 de setembro de 2026</p>
 <table>
-  <thead><tr><th>Registro</th><th>Instante (UTC)</th><th>Temperatura</th><th>Umidade</th></tr></thead>
+  <thead><tr><th style="width:18%">entry_id</th><th style="width:24%">Instante (UTC)</th><th>Temperatura</th><th>Umidade</th></tr></thead>
   <tbody>
-    <tr><td class="v">entry_id 18</td><td class="v">2026-09-29 22:33:19</td>
-        <td class="v">24,10 °C</td><td class="v">70,00 %</td></tr>
+    <tr><td class="v">3</td><td class="v">22:56:39</td><td class="v">23,40 °C</td><td class="v">66,00 %</td></tr>
+    <tr><td class="v">4</td><td class="v">22:56:59</td><td class="v">23,50 °C</td><td class="v">64,00 %</td></tr>
+    <tr><td class="v">5</td><td class="v">22:57:20</td><td class="v">23,30 °C</td><td class="v">64,00 %</td></tr>
+    <tr><td class="v">6</td><td class="v">22:57:41</td><td class="v">23,40 °C</td><td class="v">63,00 %</td></tr>
+    <tr><td class="v">7</td><td class="v">22:58:01</td><td class="v">23,40 °C</td><td class="v">63,00 %</td></tr>
+    <tr><td class="v">8</td><td class="v">22:58:22</td><td class="v">23,50 °C</td><td class="v">63,00 %</td></tr>
+    <tr><td class="v">9</td><td class="v">22:58:43</td><td class="v">23,50 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">10</td><td class="v">22:59:06</td><td class="v">23,40 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">11</td><td class="v">22:59:28</td><td class="v">23,40 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">12</td><td class="v">22:59:49</td><td class="v">23,50 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">13</td><td class="v">23:00:10</td><td class="v">23,40 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">14</td><td class="v">23:00:30</td><td class="v">23,20 °C</td><td class="v">62,00 %</td></tr>
+    <tr><td class="v">15</td><td class="v">23:00:51</td><td class="v">23,20 °C</td><td class="v">62,00 %</td></tr>
   </tbody>
 </table>
-<p class="fonte">Fonte: API do ThingSpeak, consultada em 27 de outubro de 2026.</p>
+<p class="fonte">Fonte: API do ThingSpeak (<code>/channels/3493443/feeds.json</code>), consultada em 27 de outubro de 2026.</p>
+
+<p>
+  A série cobre 4 min 12 s de operação ininterrupta, com treze envios bem-sucedidos e
+  nenhuma lacuna. Os instantes registrados pela plataforma guardam entre si intervalos de
+  20 s a 23 s, o que confirma na prática o período de 20 s declarado no firmware — a
+  diferença residual corresponde ao tempo de rede e ao processamento da requisição. A
+  temperatura permaneceu entre 23,20 °C e 23,50 °C, com média de 23,39 °C, e a umidade
+  relativa caiu de 66,00 % para 62,00 % ao longo da janela, comportamento compatível com a
+  estabilização do sensor em equilíbrio com o ar do ambiente após a energização.
+</p>
+
+<p>
+  O canal reúne dezoito entradas desde a sua criação, em 14 de setembro de 2026. As duas
+  primeiras são disparos de verificação do endereço de ingestão, anteriores à ligação
+  definitiva do sensor, e não carregam medição válida. A série da Tabela 2 corresponde à
+  primeira campanha instrumentada. Uma segunda campanha, em 29 de setembro de 2026,
+  acrescentou três registros, as entradas 16 a 18, sendo o último deles — 22:33:19 UTC,
+  24,10 °C e 70,00 % — a amostra mais recente do canal.
+</p>
 
 <div class="nota">
-  <p><b>Declaração de estado do canal.</b> A coleta foi pontual, conduzida em bancada
-  durante os ensaios de validação, e não contínua. O canal não recebe amostras desde
-  29 de setembro de 2026 porque o nó não permanece energizado fora dos períodos de
-  ensaio. Os valores acima são leituras reais do sensor, não dados de teste
-  sintéticos. Uma nova campanha de coleta está prevista, conforme a Seção 06.</p>
+  <p><b>Declaração de estado do canal.</b> A coleta é periódica dentro das janelas de
+  ensaio, e não contínua ao longo do tempo: o nó publica a cada 20 s enquanto está
+  energizado, mas não permanece energizado fora dos períodos de bancada. Por isso o canal
+  não recebe amostras desde 29 de setembro de 2026. Todos os valores da Tabela 2 são
+  leituras reais do sensor, não dados de teste sintéticos. Registre-se também que a
+  amplitude observada na série, de 0,30 °C, é inferior à incerteza declarada do DHT11, de
+  ±2 °C: a série demonstra estabilidade de transmissão e ausência de falhas, e não
+  precisão metrológica. Uma nova campanha de coleta está prevista, conforme a Seção 06.</p>
 </div>
 
 <!-- ============ 3 ============ -->
@@ -393,15 +426,16 @@
   <span class="t">Situação da entrega</span>
   <ul>
     <li><b>Concluídos:</b> nó sensor funcional com leitura validada e telemetria
-      transmitida; canal de telemetria criado e com dados reais recebidos; código-fonte
-      documentado com proteção de credenciais; gabinete protetor construído e instrumentado;
-      memorial descritivo e limitações técnicas.</li>
+      transmitida; canal de telemetria criado, com dezesseis leituras reais recebidas em
+      duas campanhas de ensaio, a maior delas com treze envios consecutivos sem falha;
+      código-fonte documentado com proteção de credenciais; gabinete protetor construído e
+      instrumentado; memorial descritivo e limitações técnicas.</li>
     <li><b>Não cumprido — diretriz de <i>upcycling</i>.</b> O gabinete foi impresso em 3D,
       e não construído a partir de embalagem reaproveitada, conforme declarado na
       Seção 03.</li>
-    <li><b>Pendente — telemetria em tempo real.</b> A coleta foi pontual. O canal
-      apresenta dados reais de 29 de setembro, e não fluxo corrente, conforme declarado
-      na Seção 02.</li>
+    <li><b>Pendente — telemetria em regime contínuo.</b> A coleta é periódica dentro das
+      janelas de ensaio, a cada 20 s, mas o nó não permanece energizado fora delas: o
+      canal não recebe amostras desde 29 de setembro, conforme declarado na Seção 02.</li>
     <li><b>Pendente — <code>field3</code> no canal.</b> Enviado pelo firmware, não
       habilitado na plataforma.</li>
   </ul>
