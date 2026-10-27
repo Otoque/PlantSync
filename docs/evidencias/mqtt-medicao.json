@@ -1,0 +1,87 @@
+[
+  {
+    "protocolo": "MQTT 3.1.1 sobre TLS (QoS 0)",
+    "broker": "broker.emqx.io:8883",
+    "topico": "plantsync/ensaio/14920973/telemetria",
+    "amostras": 20,
+    "qos": 0,
+    "ms_tcp": 1453.0,
+    "ms_tls": 331.3,
+    "ms_handshake_protocolo": 768.9,
+    "ms_sessao_total": 2553.1,
+    "bytes_sessao": 34,
+    "bytes_publicacoes": 5911,
+    "bytes_por_publicacao": 295.6,
+    "bytes_payload_medio": 254.6,
+    "bytes_overhead_por_publicacao": 41.0,
+    "ms_latencia_media": 0.05,
+    "ms_latencia_min": 0.02,
+    "ms_latencia_max": 0.23,
+    "bytes_total": 5945
+  },
+  {
+    "protocolo": "MQTT 3.1.1 sobre TLS (QoS 1)",
+    "broker": "broker.emqx.io:8883",
+    "topico": "plantsync/ensaio/a61db514/telemetria",
+    "amostras": 20,
+    "qos": 1,
+    "ms_tcp": 260.1,
+    "ms_tls": 228.9,
+    "ms_handshake_protocolo": 699.4,
+    "ms_sessao_total": 1188.4,
+    "bytes_sessao": 34,
+    "bytes_publicacoes": 6031,
+    "bytes_por_publicacao": 301.6,
+    "bytes_payload_medio": 254.6,
+    "bytes_overhead_por_publicacao": 47.0,
+    "ms_latencia_media": 299.87,
+    "ms_latencia_min": 201.08,
+    "ms_latencia_max": 989.95,
+    "bytes_total": 6065
+  },
+  {
+    "protocolo": "HTTP/1.1 sobre TLS (REST, conexao por envio)",
+    "host": "api.thingspeak.com:443",
+    "amostras": 20,
+    "amostra_resposta": "0",
+    "bytes_cabecalho_resposta": 879,
+    "linha_status": "HTTP/1.1 400 Bad Request",
+    "bytes_total": 21900,
+    "bytes_por_publicacao": 1095.0,
+    "bytes_requisicao_media": 211.0,
+    "bytes_overhead_por_publicacao": 884.0,
+    "ms_latencia_media": 475.7,
+    "ms_latencia_min": 390.51,
+    "ms_latencia_max": 580.25
+  },
+  {
+    "topico": "plantsync/ensaio/f2be2667/telemetria",
+    "publicado_bytes": 255,
+    "entregue": true,
+    "mensagens_recebidas": [
+      {
+        "topico": "plantsync/ensaio/f2be2667/telemetria",
+        "qos": 1,
+        "bytes": 255,
+        "conteudo": {
+          "device_id": "PS-EDGE-01",
+          "lote_id": "CTR-PNZ-0042",
+          "uptime_s": 3180,
+          "seq": 99,
+          "leituras": {
+            "temperatura_c": 1.8,
+            "umidade_ar_pct": 90.4,
+            "agua_livre_pct": 41.7,
+            "luminosidade_lux": 5,
+            "rssi_dbm": -58
+          },
+          "diagnostico": {
+            "alertas_bitmask": 0,
+            "risco_0_100": 0,
+            "status": "OK"
+          }
+        }
+      }
+    ]
+  }
+]

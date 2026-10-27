@@ -1,0 +1,128 @@
+==============================================================================
+ PLANTSYNC - MEDICAO COMPARATIVA: HTTPS/REST x MQTT
+ Projeto Integrador ADS 4o Periodo
+ Executado em: 26/10/2026 21:07:03
+ Python 3.13.6 | win32
+==============================================================================
+
+NOTA SOBRE A CONTAGEM DE BYTES
+------------------------------------------------------------------------------
+  Os bytes contabilizados sao os de aplicacao entregues ao TLS, nao os
+  bytes cifrados na interface de rede. O registro TLS acrescenta de 22 a
+  45 bytes por bloco, overhead presente nos dois protocolos e que nao
+  altera a comparacao relativa.
+
+NOTA SOBRE AS LATENCIAS - LEITURA OBRIGATORIA
+------------------------------------------------------------------------------
+  As tres latencias medidas NAO sao grandezas equivalentes e nao devem
+  ser comparadas diretamente:
+
+  MQTT QoS 0  mede apenas o tempo de entregar os bytes ao buffer TLS.
+              Nao ha confirmacao do broker: o protocolo e deliberadamente
+              do tipo 'dispare e esqueca'. O valor na casa dos
+              centesimos de milissegundo e custo local de CPU, NAO prova
+              de entrega. Concluir dai que o MQTT e milhares de vezes
+              mais rapido seria erro de interpretacao.
+
+  MQTT QoS 1  mede a volta completa ate o PUBACK do broker. Este sim e
+              tempo de confirmacao de entrega, comparavel ao do HTTP.
+
+  HTTPS       mede a operacao inteira: conexao TCP, handshake TLS,
+              requisicao e resposta. O firmware atual abre e fecha a
+              conexao a cada envio, portanto este e o custo real em
+              producao, nao um pior caso artificial.
+
+  A comparacao honesta de latencia e MQTT QoS 1 contra HTTPS.
+
+==============================================================================
+ MQTT 3.1.1 sobre TLS (QoS 0)
+==============================================================================
+  Destino ............................: broker.emqx.io:8883
+  Topico .............................: plantsync/ensaio/14920973/telemetria
+  Amostras ...........................: 20
+
+  ESTABELECIMENTO DA SESSAO (uma vez por conexao)
+    Conexao TCP ......................:   1453.0 ms
+    Handshake TLS ....................:    331.3 ms
+    CONNECT/CONNACK MQTT .............:    768.9 ms
+    Total da sessao ..................:   2553.1 ms
+    Bytes do handshake MQTT ..........:       34 B
+
+  REGIME PERMANENTE (por publicacao)
+    Bytes totais .....................:    295.6 B
+    Payload util                    ..:    254.6 B
+    Overhead de protocolo ............:     41.0 B
+    Latencia media ...................:     0.05 ms
+    Latencia min / max ...............: 0.02 / 0.23 ms
+
+  TOTAL DO ENSAIO ....................: 5945 B
+
+==============================================================================
+ MQTT 3.1.1 sobre TLS (QoS 1)
+==============================================================================
+  Destino ............................: broker.emqx.io:8883
+  Topico .............................: plantsync/ensaio/a61db514/telemetria
+  Amostras ...........................: 20
+
+  ESTABELECIMENTO DA SESSAO (uma vez por conexao)
+    Conexao TCP ......................:    260.1 ms
+    Handshake TLS ....................:    228.9 ms
+    CONNECT/CONNACK MQTT .............:    699.4 ms
+    Total da sessao ..................:   1188.4 ms
+    Bytes do handshake MQTT ..........:       34 B
+
+  REGIME PERMANENTE (por publicacao)
+    Bytes totais .....................:    301.6 B
+    Payload util                    ..:    254.6 B
+    Overhead de protocolo ............:     47.0 B
+    Latencia media ...................:   299.87 ms
+    Latencia min / max ...............: 201.08 / 989.95 ms
+
+  TOTAL DO ENSAIO ....................: 6065 B
+
+==============================================================================
+ HTTP/1.1 sobre TLS (REST, conexao por envio)
+==============================================================================
+  Destino ............................: api.thingspeak.com:443
+  Amostras ...........................: 20
+
+  Resposta do servidor ...............: HTTP/1.1 400 Bad Request
+  Corpo da resposta ..................: "0"
+  Cabecalhos da resposta .............: 879 B
+
+  REGIME PERMANENTE (por publicacao)
+    Bytes totais .....................:   1095.0 B
+    Requisicao                      ..:    211.0 B
+    Overhead de protocolo ............:    884.0 B
+    Latencia media ...................:   475.70 ms
+    Latencia min / max ...............: 390.51 / 580.25 ms
+
+  TOTAL DO ENSAIO ....................: 21900 B
+
+==============================================================================
+ ENSAIO FUNCIONAL - ENTREGA FIM A FIM (paho-mqtt)
+==============================================================================
+  Topico .............................: plantsync/ensaio/f2be2667/telemetria
+  Payload publicado ..................: 255 B
+  Entregue ao assinante ..............: SIM
+    Recebido em ....................: plantsync/ensaio/f2be2667/telemetria
+    QoS efetivo ....................: 1
+    Bytes ..........................: 255
+    device_id ......................: PS-EDGE-01
+    temperatura_c ..................: 1.8
+    status .........................: OK
+
+==============================================================================
+ CONSOLIDACAO
+==============================================================================
+  Bytes por publicacao - HTTPS .......:   1095.0 B
+  Bytes por publicacao - MQTT QoS 0 ..:    295.6 B
+  Razao HTTPS / MQTT .................:      3.7 x
+  Economia do MQTT ...................:     73.0 %
+
+  Viagem Petrolina-Pecem (72 h) - 12960 envios a cada 20 s
+    HTTPS ............................:  13858.6 KiB
+    MQTT (1 sessao + N publicacoes) ..:   3741.2 KiB
+    Diferenca ........................:  10117.4 KiB (73.0 % menos)
+
+==============================================================================

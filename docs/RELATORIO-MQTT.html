@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>PlantSync — Relatório de implementação do MQTT</title>
+<style>
+  @page { size:A4; margin:25mm 20mm 20mm 25mm; }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0 auto; max-width:170mm; padding:0;
+    font-family:"Times New Roman",Times,serif;
+    font-size:12pt; line-height:1.5; color:#000; background:#fff;
+    text-align:justify;
+  }
+
+  h2{
+    font-size:12pt; font-weight:bold; text-transform:uppercase; text-align:left;
+    margin:24pt 0 4pt; padding-bottom:4pt;
+    border-bottom:1.5pt solid #000;
+    page-break-after:avoid;
+  }
+  h3{ font-size:12pt; font-weight:bold; text-align:left; margin:16pt 0 7pt;
+      page-break-after:avoid; }
+  h4{ font-size:12pt; font-weight:normal; font-style:italic; text-align:left;
+      margin:12pt 0 5pt; page-break-after:avoid; }
+
+  p{ margin:0 0 10pt; text-indent:1.25cm; }
+  p.sem-recuo{ text-indent:0; }
+
+  ol,ul{ margin:0 0 10pt; padding-left:1.25cm; }
+  li{ margin-bottom:5pt; text-align:justify; }
+
+  code{ font-family:"Courier New",Courier,monospace; font-size:10.5pt; }
+  a{ color:#000; text-decoration:none; }
+
+  /* ================= FOLHA DE ROSTO ================= */
+  .rosto{ text-align:center; padding:0 0 18pt; margin-bottom:6pt; }
+  .rosto .inst{ font-size:12pt; text-transform:uppercase; line-height:1.45;
+                margin-bottom:46pt; }
+  .rosto .titulo{ font-size:16pt; font-weight:bold; text-transform:uppercase;
+                  letter-spacing:2pt; margin-bottom:10pt; }
+  .rosto .regua{ width:58mm; height:1.5pt; background:#000; margin:0 auto 12pt; }
+  .rosto .subtitulo{ font-size:12pt; line-height:1.5; margin-bottom:44pt;
+                     padding:0 12mm; }
+  .rosto .local{ font-size:12pt; margin-top:30pt; line-height:1.5; }
+
+  .ficha{
+    border:1pt solid #000; margin:0 auto 34pt; width:118mm; max-width:100%;
+    font-size:10.5pt; text-align:left;
+  }
+  .ficha div{ display:flex; border-bottom:.5pt solid #999; }
+  .ficha div:last-child{ border-bottom:none; }
+  .ficha span.rot{ flex:0 0 44mm; padding:4.5pt 7pt; font-weight:bold;
+                   background:#ececec; border-right:.5pt solid #999; }
+  .ficha span.val{ padding:4.5pt 7pt; }
+
+  /* ================= SUMÁRIO ================= */
+  .sumario{ margin:0 0 10pt; }
+  .sumario a{ display:flex; align-items:baseline; text-indent:0;
+              margin-bottom:5pt; font-size:11.5pt; }
+  .sumario .n{ flex:0 0 12mm; font-weight:bold; }
+  .sumario .tx{ flex:0 0 auto; }
+  .sumario .pt{ flex:1 1 auto; border-bottom:1pt dotted #666;
+                margin:0 4pt 3pt; }
+  .sumario .sub{ padding-left:12mm; font-size:11pt; }
+  .sumario .sub .n{ flex:0 0 18mm; font-weight:normal; }
+
+  /* ================= QUADROS ================= */
+  .legenda-sup{ font-size:10.5pt; text-align:left; text-indent:0;
+                margin:16pt 0 3pt; }
+  table{ width:100%; border-collapse:collapse; margin:0 0 3pt;
+         font-size:10pt; page-break-inside:avoid; }
+  table, table th, table td{ border:.75pt solid #000; }
+  table th{ background:#e4e4e4; padding:5pt 6pt; text-align:left;
+            font-weight:bold; vertical-align:middle; }
+  table td{ padding:5pt 6pt; vertical-align:top; text-align:left; }
+  table tbody tr:nth-child(even) td{ background:#f7f7f7; }
+  .fonte{ font-size:9.5pt; text-align:left; text-indent:0; margin:0 0 16pt; }
+
+  td.cen{ text-align:center; }
+  td.num{ text-align:right; font-family:"Courier New",Courier,monospace; }
+  td.id{ text-align:center; font-weight:bold; white-space:nowrap; }
+  .cat{ background:#d9d9d9 !important; font-weight:bold; font-size:9.5pt;
+        text-transform:uppercase; letter-spacing:.4pt; }
+  tr.destaque td{ background:#e4e4e4 !important; font-weight:bold; }
+
+  /* ================= CÓDIGO ================= */
+  pre.codigo{
+    font-family:"Courier New",Courier,monospace; font-size:9pt;
+    line-height:1.35; border:.75pt solid #000; padding:8pt 10pt;
+    margin:4pt 0 3pt; white-space:pre-wrap; text-align:left;
+    background:#fbfbfb; page-break-inside:avoid;
+  }
+
+  /* ================= FIGURAS ================= */
+  figure{ margin:16pt 0; page-break-inside:avoid; text-align:center; }
+  .moldura{ border:.75pt solid #000; padding:8pt; display:block; }
+  figure img{ max-width:100%; height:auto; display:block; margin:0 auto; }
+  figure svg{ display:block; width:100%; height:auto; }
+  .legenda-inf{ font-size:10.5pt; text-align:center; text-indent:0; margin:6pt 0 2pt; }
+  figcaption{ font-size:9.5pt; text-align:center; text-indent:0; }
+
+  .preencher{ border:.75pt dashed #000; padding:22pt 12pt; display:block;
+              font-size:10pt; font-style:italic; text-indent:0; color:#333; }
+
+  .obs{ border-left:3pt solid #000; padding:2pt 0 2pt 10pt; margin:12pt 0 14pt; }
+  .obs p{ text-indent:0; margin:0; font-size:11pt; }
+  .obs .rot{ font-weight:bold; }
+
+  .refs p{ text-indent:0; padding-left:1.25cm; text-indent:-1.25cm;
+           margin-bottom:11pt; text-align:left; }
+
+  .quebra{ page-break-before:always; }
+
+  .nota-impressao{ border:1pt solid #000; padding:9pt 11pt; margin-bottom:22pt;
+                   font-size:10pt; text-indent:0; }
+  @media print{ .nota-impressao{ display:none; } }
+</style>
+</head>
+<body>
+
+<p class="nota-impressao">
+  <b>Instruções para geração do PDF.</b> Pressione Ctrl+P, selecione o destino “Salvar
+  como PDF”, mantenha as margens no padrão e habilite a opção “Gráficos de segundo
+  plano”. Para numerar as páginas, mantenha ativa a opção “Cabeçalhos e rodapés”. Os
+  campos delimitados por bordas tracejadas devem ser substituídos pelos registros
+  visuais correspondentes antes do envio. Esta nota não é impressa.
+</p>
+
+<!-- ============================ FOLHA DE ROSTO ============================ -->
+<div class="rosto">
+  <div class="inst">
+    Curso Superior de Tecnologia em<br>
+    Análise e Desenvolvimento de Sistemas<br>
+    Projeto Integrador — 4.º Período
+  </div>
+
+  <div class="titulo">PlantSync</div>
+  <div class="regua"></div>
+  <div class="subtitulo">
+    Implementação do protocolo MQTT no módulo de borda<br>
+    e análise comparativa com o transporte HTTPS/REST
+  </div>
+
+  <div class="ficha">
+    <div><span class="rot">Documento</span><span class="val">Relatório técnico — Aperfeiçoamento com MQTT</span></div>
+    <div><span class="rot">Atividade</span><span class="val">III — Aperfeiçoando os Projetos e Protocolos</span></div>
+    <div><span class="rot">UC Focal Integradora</span><span class="val">Internet das Coisas (IoT)</span></div>
+    <div><span class="rot">Equipe</span><span class="val">PlantSync — cinco integrantes</span></div>
+    <div><span class="rot">Versão do firmware</span><span class="val">v3 — transporte selecionável (MQTT / HTTP)</span></div>
+    <div><span class="rot">Repositório oficial</span><span class="val">github.com/Otoque/PlantSync</span></div>
+    <div><span class="rot">Data de emissão</span><span class="val">26 de outubro de 2026</span></div>
+  </div>
+
+  <div class="local">Recife — Pernambuco<br>2026</div>
+</div>
+
+<!-- ============================ SUMÁRIO ============================ -->
+<h2 class="quebra">Sumário</h2>
+
+<div class="sumario">
+  <a href="#s1"><span class="n">1</span><span class="tx">Introdução e objetivo</span><span class="pt"></span></a>
+  <a href="#s2"><span class="n">2</span><span class="tx">Fundamentação: o protocolo MQTT</span><span class="pt"></span></a>
+  <a href="#s3"><span class="n">3</span><span class="tx">A decisão arquitetural anterior e sua revisão</span><span class="pt"></span></a>
+  <a href="#s4"><span class="n">4</span><span class="tx">Canal MQTT do projeto</span><span class="pt"></span></a>
+  <a href="#s5"><span class="n">5</span><span class="tx">Implementação no firmware</span><span class="pt"></span></a>
+  <a href="#s6"><span class="n">6</span><span class="tx">Método de medição</span><span class="pt"></span></a>
+  <a href="#s7"><span class="n">7</span><span class="tx">Resultados técnicos</span><span class="pt"></span></a>
+  <a href="#s8"><span class="n">8</span><span class="tx">Análise funcional</span><span class="pt"></span></a>
+  <a href="#s9"><span class="n">9</span><span class="tx">Conclusão: a decisão muda?</span><span class="pt"></span></a>
+  <a href="#s10"><span class="n">10</span><span class="tx">Limitações e próximos passos</span><span class="pt"></span></a>
+  <a href="#ref"><span class="n"></span><span class="tx">Referências</span><span class="pt"></span></a>
+</div>
+
+<h3 style="margin-top:22pt;">Lista de quadros, tabelas e figuras</h3>
+
+<div class="sumario">
+  <a href="#q1" class="sub"><span class="n">Quadro 1</span><span class="tx">Elementos do modelo MQTT</span><span class="pt"></span></a>
+  <a href="#q2" class="sub"><span class="n">Quadro 2</span><span class="tx">Níveis de qualidade de serviço</span><span class="pt"></span></a>
+  <a href="#q3" class="sub"><span class="n">Quadro 3</span><span class="tx">Recursos sem equivalente no modelo REST</span><span class="pt"></span></a>
+  <a href="#q4" class="sub"><span class="n">Quadro 4</span><span class="tx">Alternativas de broker avaliadas</span><span class="pt"></span></a>
+  <a href="#q5" class="sub"><span class="n">Quadro 5</span><span class="tx">Hierarquia de tópicos adotada</span><span class="pt"></span></a>
+  <a href="#f1" class="sub"><span class="n">Figura 1</span><span class="tx">Arquitetura com os dois transportes</span><span class="pt"></span></a>
+  <a href="#t1" class="sub"><span class="n">Tabela 1</span><span class="tx">Custo de estabelecimento da sessão</span><span class="pt"></span></a>
+  <a href="#t2" class="sub"><span class="n">Tabela 2</span><span class="tx">Custo por publicação em regime permanente</span><span class="pt"></span></a>
+  <a href="#t3" class="sub"><span class="n">Tabela 3</span><span class="tx">Latência observada</span><span class="pt"></span></a>
+  <a href="#t4" class="sub"><span class="n">Tabela 4</span><span class="tx">Projeção para uma viagem de 72 horas</span><span class="pt"></span></a>
+  <a href="#q6" class="sub"><span class="n">Quadro 6</span><span class="tx">Comparação funcional</span><span class="pt"></span></a>
+  <a href="#q7" class="sub"><span class="n">Quadro 7</span><span class="tx">Limitações identificadas</span><span class="pt"></span></a>
+</div>
+
+<!-- ============================ 1 ============================ -->
+<h2 id="s1" class="quebra">1 Introdução e objetivo</h2>
+
+<p>
+  O PlantSync é um sistema de telemetria de microclima para monitoramento da integridade
+  de cargas refrigeradas de uva de mesa e manga, da unidade de beneficiamento até o porto
+  de embarque. Até a presente versão, o módulo de borda transmitia a telemetria
+  exclusivamente por requisições HTTP sobre TLS, dirigidas à interface REST da plataforma
+  ThingSpeak.
+</p>
+<p>
+  Este relatório documenta a pesquisa, a implementação e a avaliação do protocolo MQTT
+  como transporte alternativo, conforme solicitado na atividade III. O trabalho não se
+  limitou a substituir um protocolo pelo outro: a implementação preserva o caminho HTTP
+  e acrescenta o MQTT ao seu lado, de modo que ambos compartilhem a mesma amostra, a
+  mesma validação e o mesmo temporizador. Essa escolha permite que a comparação seja
+  feita sobre o mesmo hardware, na mesma rede e com o mesmo payload, isolando o
+  transporte como única variável.
+</p>
+<p>
+  O relatório revisita, ainda, a decisão arquitetural registrada na Seção 6.1 do
+  Checkpoint 01, que havia justificado a adoção do REST em detrimento do MQTT. A
+  avaliação dessa decisão à luz das medições obtidas constitui o eixo analítico do
+  documento.
+</p>
+
+<!-- ============================ 2 ============================ -->
+<h2 id="s2">2 Fundamentação: o protocolo MQTT</h2>
+
+<p>
+  O <i>Message Queuing Telemetry Transport</i> é um protocolo de mensageria concebido em
+  1999 por Andy Stanford-Clark, da IBM, e Arlen Nipper, da Arcom, para telemetria de
+  oleodutos conectados por enlace de satélite, em que a largura de banda era escassa e
+  cara. Essa origem explica suas características centrais: cabeçalho mínimo, sessão
+  persistente e tolerância a enlaces instáveis. O protocolo foi padronizado pela OASIS na
+  versão 3.1.1, publicada em 2014, e posteriormente estendido na versão 5.0, de 2019.
+</p>
+
+<h3>2.1 Modelo de publicação e assinatura</h3>
+
+<p>
+  A diferença estrutural em relação ao HTTP está no modelo de comunicação. O HTTP é
+  cliente-servidor e síncrono: o cliente formula uma requisição a um destinatário
+  conhecido e aguarda a resposta. O MQTT é de publicação e assinatura, intermediado por
+  um agente central denominado <i>broker</i>. O dispositivo que produz o dado publica em
+  um tópico, sem conhecer quem irá consumi-lo; o interessado assina o tópico, sem
+  conhecer quem o produz. Produtor e consumidor ficam desacoplados no espaço, no tempo e
+  na sincronia.
+</p>
+<p>
+  Esse desacoplamento tem consequência prática direta no PlantSync. No modelo REST, o nó
+  sensor precisa conhecer o endereço do serviço de ingestão, e qualquer consumidor
+  adicional do dado — o painel, um serviço de alerta, um módulo analítico — precisa
+  consultar esse serviço periodicamente. No modelo MQTT, o nó publica uma vez e o broker
+  replica para todos os assinantes, no instante da publicação.
+</p>
+
+<p class="legenda-sup" id="q1">Quadro 1 – Elementos do modelo MQTT</p>
+<table>
+  <thead><tr><th style="width:22%">Elemento</th><th>Definição e papel no PlantSync</th></tr></thead>
+  <tbody>
+    <tr><td><i>Broker</i></td>
+        <td>Agente central que recebe as publicações e as encaminha aos assinantes. Mantém o estado das sessões, as mensagens retidas e as assinaturas ativas. É o único componente que todos os demais precisam conhecer.</td></tr>
+    <tr><td>Cliente</td>
+        <td>Qualquer entidade que se conecta ao broker para publicar, assinar ou ambos. No projeto, o nó ESP32-C3 publica, e o serviço de ingestão e o painel assinam.</td></tr>
+    <tr><td>Tópico</td>
+        <td>Cadeia hierárquica separada por barras que identifica o assunto da mensagem. Não precisa ser criado previamente: existe a partir do momento em que alguém publica nele.</td></tr>
+    <tr><td>Curingas</td>
+        <td>Na assinatura, <code>+</code> substitui um nível e <code>#</code> substitui os níveis restantes. Permite que o painel assine <code>plantsync/+/telemetria</code> e receba a telemetria de todos os nós sem saber quantos existem.</td></tr>
+    <tr><td><i>Keep-alive</i></td>
+        <td>Intervalo máximo que o cliente pode ficar em silêncio. Excedido esse prazo com folga, o broker considera a sessão encerrada de forma anormal.</td></tr>
+    <tr><td>Sessão persistente</td>
+        <td>O broker pode guardar assinaturas e mensagens não entregues de um cliente ausente, repassando-as quando ele retorna.</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026), com base em OASIS (2014).</p>
+
+<h3>2.2 Qualidade de serviço</h3>
+
+<p>
+  O MQTT oferece três níveis de garantia de entrega, selecionáveis por mensagem. A
+  escolha é um compromisso explícito entre confiabilidade e custo, decisão que o HTTP não
+  oferece ao desenvolvedor.
+</p>
+
+<p class="legenda-sup" id="q2">Quadro 2 – Níveis de qualidade de serviço</p>
+<table>
+  <thead><tr><th style="width:12%">Nível</th><th style="width:26%">Garantia</th><th style="width:26%">Mecanismo</th><th>Adequação ao PlantSync</th></tr></thead>
+  <tbody>
+    <tr><td class="id">QoS 0</td><td>No máximo uma vez</td>
+        <td>Publicação simples, sem confirmação. A mensagem pode se perder.</td>
+        <td>Adequado à telemetria periódica: a perda de uma amostra isolada entre 12.960 de uma viagem não compromete o cálculo de graus-hora.</td></tr>
+    <tr><td class="id">QoS 1</td><td>Ao menos uma vez</td>
+        <td>O broker confirma com PUBACK. Sem confirmação, o cliente retransmite, o que pode gerar duplicata.</td>
+        <td>Adequado aos alertas e ao encerramento de lote, em que perder a mensagem tem custo operacional real. Exige que o consumidor tolere duplicatas.</td></tr>
+    <tr><td class="id">QoS 2</td><td>Exatamente uma vez</td>
+        <td>Diálogo de quatro etapas (PUBREC, PUBREL, PUBCOMP) que elimina duplicatas.</td>
+        <td>Não utilizado. O custo de três voltas adicionais na rede não se justifica para os dados do projeto, cuja camada analítica já é idempotente por <code>entry_id</code>.</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026), com base em OASIS (2014).</p>
+
+<h3>2.3 Recursos sem equivalente no modelo REST</h3>
+
+<p>
+  Três mecanismos do MQTT decorrem da existência de uma sessão e, por isso, não possuem
+  equivalente funcional no HTTP, que é um protocolo sem estado. Eles se revelaram, ao
+  longo deste trabalho, mais determinantes para o projeto do que a economia de tráfego.
+</p>
+
+<p class="legenda-sup" id="q3">Quadro 3 – Recursos sem equivalente no modelo REST</p>
+<table>
+  <thead><tr><th style="width:26%">Recurso</th><th style="width:37%">Funcionamento</th><th>Aplicação no PlantSync</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><i>Last Will and Testament</i> (LWT)</td>
+      <td>No momento da conexão, o cliente registra no broker uma mensagem e um tópico. Se a sessão terminar de forma anormal — queda de energia, travamento, perda de enlace — o broker publica essa mensagem por conta própria.</td>
+      <td>Resolve um ponto cego real da cadeia do frio. Até esta versão, um dispositivo que emudecia era indistinguível de um dispositivo sem nada a relatar. Com LWT, o silêncio vira evento: o painel recebe <code>{"estado":"offline"}</code> sem que ninguém precise consultar nada.</td>
+    </tr>
+    <tr>
+      <td>Retenção (<i>retain</i>)</td>
+      <td>O broker guarda a última mensagem publicada com a marca de retenção e a entrega imediatamente a quem assinar o tópico depois.</td>
+      <td>Um painel que abre às 3h da manhã recebe o estado corrente do lote no mesmo instante, sem esperar o próximo ciclo de vinte segundos nem consultar o histórico.</td>
+    </tr>
+    <tr>
+      <td>Comunicação bidirecional</td>
+      <td>O mesmo enlace serve para o cliente publicar e receber. O broker entrega mensagens ao dispositivo sem que ele precise perguntar.</td>
+      <td>Abre caminho para reconfigurar em trânsito o intervalo de envio ou a faixa segura da fruta, sem gravar firmware novo. No REST, isso exigiria consulta periódica do nó a um endpoint de comandos.</td>
+    </tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026).</p>
+
+<!-- ============================ 3 ============================ -->
+<h2 id="s3" class="quebra">3 A decisão arquitetural anterior e sua revisão</h2>
+
+<p>
+  A Seção 6.1 do Checkpoint 01 registrou formalmente a opção pelo REST, nos seguintes
+  termos:
+</p>
+
+<div class="obs">
+  <p><span class="rot">Protocolo de ingestão.</span> “Optou-se pela ingestão mediante REST
+  sobre HTTPS, em detrimento do protocolo MQTT. O nó sensor opera com alimentação cabeada
+  e transmite uma amostra a cada vinte segundos, regime no qual o ganho de eficiência
+  associado ao MQTT não compensa a necessidade de manutenção de um intermediário de
+  mensagens próprio. A migração para MQTT passará a ser justificável quando o projeto
+  evoluir para operação por bateria com rádio de baixo consumo.”</p>
+</div>
+
+<p>
+  A decisão está corretamente fundamentada <i>dentro do critério que adotou</i>. O
+  raciocínio é o seguinte: se a única vantagem do MQTT for a eficiência de tráfego, e se
+  o dispositivo não tiver restrição de energia nem de banda, então o custo de operar um
+  broker não se paga. Esse encadeamento é válido.
+</p>
+<p>
+  O que a presente investigação evidenciou é que a premissa era incompleta. A decisão
+  avaliou o MQTT exclusivamente como um protocolo mais econômico, e sob essa ótica
+  concluiu o que era coerente concluir. Não considerou que o MQTT é também um protocolo
+  com <i>capacidades</i> que o HTTP não possui — notadamente a detecção de ausência do
+  dispositivo, examinada no Quadro 3. A Seção 9 retoma esse ponto à luz dos resultados.
+</p>
+
+<!-- ============================ 4 ============================ -->
+<h2 id="s4">4 Canal MQTT do projeto</h2>
+
+<h3>4.1 Alternativas avaliadas</h3>
+
+<p>
+  A atividade determina a criação de um canal MQTT para o projeto. Foram avaliadas três
+  alternativas, com ensaio efetivo de conectividade e de validação de certificado em
+  cada uma delas.
+</p>
+
+<p class="legenda-sup" id="q4">Quadro 4 – Alternativas de broker avaliadas</p>
+<table>
+  <thead><tr><th style="width:22%">Alternativa</th><th style="width:30%">Avaliação</th><th>Decisão</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>MQTT nativo do ThingSpeak<br><code>mqtt3.thingspeak.com</code></td>
+      <td>Reaproveita o canal 3493443 e a base histórica. Conectividade confirmada nas portas 1883 e 8883, com certificado DigiCert válido.</td>
+      <td>Mantido como opção secundária no arquivo-modelo de credenciais. A plataforma impõe a estrutura de tópico <code>channels/&lt;id&gt;/publish</code> e payload em cadeia de consulta, sem LWT, sem retenção e sem tópicos livres — ou seja, descarta justamente os recursos que distinguem o MQTT.</td>
+    </tr>
+    <tr>
+      <td>Mosquitto público<br><code>test.mosquitto.org</code></td>
+      <td>Implementação de referência do protocolo. A porta 1883 encontra-se bloqueada na rede utilizada; a 8883 responde.</td>
+      <td>Descartado. O certificado de sua autoridade certificadora não contém a extensão <i>keyUsage</i>, exigida pela RFC 5280 e verificada pelo OpenSSL 3 em modo estrito. Utilizá-lo obrigaria a afrouxar a verificação TLS, o que contrariaria o RNF02 do próprio projeto no ensaio destinado a avaliá-lo.</td>
+    </tr>
+    <tr>
+      <td>EMQX público<br><code>broker.emqx.io</code></td>
+      <td>Certificado assinado pela DigiCert, aceito sob verificação estrita sem qualquer relaxamento. Suporta tópicos livres, LWT, retenção e QoS 0 a 2.</td>
+      <td><b>Adotado</b> para a implementação e para os ensaios de medição.</td>
+    </tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026).</p>
+
+<div class="obs">
+  <p><span class="rot">Observação sobre o ambiente de produção.</span> O broker público é
+  adequado ao ensaio, porém inaceitável em operação: é compartilhado, não autenticado e
+  sem garantia de disponibilidade. A arquitetura-alvo prevê um broker Mosquitto próprio,
+  em contêiner, com autenticação por usuário e senha e certificado da equipe fixado no
+  firmware. O arquivo-modelo de credenciais já contempla esses campos.</p>
+</div>
+
+<h3>4.2 Hierarquia de tópicos adotada</h3>
+
+<p class="legenda-sup" id="q5">Quadro 5 – Hierarquia de tópicos adotada</p>
+<table>
+  <thead><tr><th style="width:36%">Tópico</th><th style="width:12%">QoS</th><th style="width:12%">Retenção</th><th>Conteúdo</th></tr></thead>
+  <tbody>
+    <tr><td><code>plantsync/&lt;id&gt;/telemetria</code></td><td class="cen">0</td><td class="cen">Não</td>
+        <td>Amostra completa em JSON, a cada vinte segundos.</td></tr>
+    <tr><td><code>plantsync/&lt;id&gt;/alerta</code></td><td class="cen">0</td><td class="cen">Sim</td>
+        <td>Publicado apenas quando há violação de faixa. Permite ao painel assinar somente alertas, sem processar o fluxo integral de leituras.</td></tr>
+    <tr><td><code>plantsync/&lt;id&gt;/status</code></td><td class="cen">1</td><td class="cen">Sim</td>
+        <td>Presença do dispositivo. Recebe <code>online</code> na conexão e, por ação autônoma do broker, <code>offline</code> na queda anormal.</td></tr>
+    <tr><td><code>plantsync/&lt;id&gt;/comando</code></td><td class="cen">1</td><td class="cen">—</td>
+        <td>Assinado pelo dispositivo. Reservado para reconfiguração em trânsito.</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026).</p>
+
+<p>
+  A hierarquia permite que o serviço de ingestão assine <code>plantsync/+/telemetria</code>
+  e receba todos os nós existentes e futuros sem alteração de configuração, e que o
+  painel de supervisão assine <code>plantsync/+/status</code> para manter um quadro de
+  presença da frota.
+</p>
+
+<h3>4.3 Procedimento para o canal MQTT do ThingSpeak</h3>
+
+<p>
+  As credenciais MQTT do ThingSpeak são distintas da <i>Write API Key</i> utilizada no
+  transporte HTTP e não puderam ser geradas no âmbito deste relatório, por exigirem acesso
+  autenticado à conta que detém o canal. O procedimento fica registrado para execução pela
+  equipe:
+</p>
+
+<ol>
+  <li>Acessar o portal ThingSpeak com a conta proprietária do canal 3493443.</li>
+  <li>Navegar até <i>Devices</i> e, em seguida, <i>MQTT</i>.</li>
+  <li>Selecionar <i>Add a new device</i>, atribuir um nome e autorizar o canal 3493443.</li>
+  <li>Registrar o <i>Client ID</i>, o <i>Username</i> e a <i>Password</i> apresentados. O portal os exibe uma única vez, no ato da criação.</li>
+  <li>Transcrever os valores para o arquivo <code>credentials.h</code> local, nos campos já previstos no arquivo-modelo, e definir <code>MQTT_THINGSPEAK</code> no <code>main.ino</code>.</li>
+</ol>
+
+<!-- ============================ 5 ============================ -->
+<h2 id="s5" class="quebra">5 Implementação no firmware</h2>
+
+<p>
+  A versão 3 do firmware mantém integralmente o hardware e a lógica de validação da
+  versão anterior, acrescentando o transporte MQTT sob chave de compilação. O código
+  completo encontra-se em <code>hardware/plantsync-edge/main.ino</code>, no repositório
+  do projeto. Os trechos comentados a seguir são os que concentram a implementação.
+</p>
+
+<h3>5.1 Seleção de transporte</h3>
+
+<pre class="codigo">#define USAR_MQTT
+#define USAR_HTTP</pre>
+
+<p>
+  Manter as duas diretivas ativas faz o nó publicar pelos dois caminhos no mesmo ciclo,
+  a partir da mesma amostra. Essa foi a configuração utilizada na coleta comparativa.
+  Comentar <code>USAR_MQTT</code> restaura exatamente o comportamento da versão 2, o que
+  garante que a alteração seja reversível sem remoção de código.
+</p>
+
+<h3>5.2 Prototipagem condicional</h3>
+
+<pre class="codigo">#ifdef USAR_MQTT
+void montarTopicos();
+void configurarMqtt();
+bool conectarMqtt();
+void publicarMqtt(const String &amp;payload);
+void aoReceberMqtt(char* topico, byte* payload, unsigned int tamanho);
+#endif</pre>
+
+<p>
+  O pré-processador da Arduino IDE gera automaticamente os protótipos das funções do
+  <i>sketch</i>, porém os insere antes das diretivas condicionais. Sem a declaração
+  explícita acima, desativar <code>USAR_MQTT</code> produziria protótipos de funções
+  inexistentes e o <i>sketch</i> deixaria de compilar. O problema é conhecido e a
+  declaração dentro do mesmo guarda o resolve.
+</p>
+
+<h3>5.3 Registro do Last Will and Testament</h3>
+
+<pre class="codigo">const char* ultimaVontade = "{\"estado\":\"offline\",\"origem\":\"lwt\"}";
+
+ok = mqtt.connect(ID_DISPOSITIVO,
+                  topicoStatus, 1 /* QoS do LWT */, true /* retain */,
+                  ultimaVontade);
+
+if (ok) {
+  // Anuncio de presenca, tambem retido.
+  mqtt.publish(topicoStatus, "{\"estado\":\"online\"}", true);
+}</pre>
+
+<p>
+  A mensagem de última vontade é entregue ao broker no momento do <code>CONNECT</code> e
+  permanece armazenada enquanto a sessão durar. O dispositivo não precisa fazer mais
+  nada: se a sessão terminar sem um <code>DISCONNECT</code> explícito, o broker publica a
+  mensagem por iniciativa própria. A publicação do estado <code>online</code> logo após a
+  conexão, com retenção, completa o mecanismo — o tópico de status passa a refletir
+  sempre a situação corrente do nó.
+</p>
+
+<h3>5.4 Manutenção da sessão no laço principal</h3>
+
+<pre class="codigo">if (mqtt.connected()) {
+  mqtt.loop();
+} else if (WiFi.status() == WL_CONNECTED &amp;&amp;
+           agora - ultimaTentativaMqtt &gt;= INTERVALO_RETRY_MQTT) {
+  ultimaTentativaMqtt = agora;
+  conectarMqtt();
+}</pre>
+
+<p>
+  A chamada a <code>mqtt.loop()</code> é obrigatória a cada iteração: é ela que processa
+  o <code>PINGRESP</code> do <i>keep-alive</i>, as confirmações de QoS 1 e as mensagens
+  recebidas. Sua ausência derruba a sessão ao fim do intervalo de <i>keep-alive</i>,
+  ainda que a rede permaneça íntegra. A reconexão respeita o padrão de temporização não
+  bloqueante adotado em todo o projeto (RNF03): não há espera ocupada, apenas comparação
+  de <code>millis()</code> contra o intervalo de nova tentativa.
+</p>
+
+<h3>5.5 Preservação do Fail-Fast</h3>
+
+<pre class="codigo">if (agora - ultimaAtualizacao &gt;= INTERVALO_UPDATE) {
+  ultimaAtualizacao = agora;
+  if (amostra.valida) {
+    enviarDadosTelemetria();   // despacha para MQTT e/ou HTTP
+  } else {
+    Serial.println("[ENVIO ] Abortado: nenhuma amostra valida (Fail-Fast).");
+  }
+}</pre>
+
+<p>
+  O despacho de transporte ocorre depois da validação, e não antes. Com isso, a garantia
+  estabelecida pelo RNF01 — amostra inconsistente não alcança a nuvem — vale igualmente
+  para os dois protocolos. Trata-se de um ponto que a introdução de um segundo
+  transporte poderia facilmente comprometer, caso a publicação MQTT fosse inserida em
+  paralelo ao fluxo de validação em vez de posteriormente a ele.
+</p>
+
+<h3>5.6 Arquitetura resultante</h3>
+
+<figure id="f1">
+<span class="moldura">
+<svg viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Arquitetura do PlantSync com os transportes MQTT e HTTP">
+  <defs>
+    <marker id="s1" markerWidth="9" markerHeight="9" refX="7.5" refY="3.2"
+            orient="auto"><path d="M0,0 L8,3.2 L0,6.4 z" fill="#000"/></marker>
+    <style>
+      .cx{ fill:#fff; stroke:#000; stroke-width:1.3; }
+      .cxh{ fill:#ececec; stroke:#000; stroke-width:1.3; }
+      .cam{ fill:#fafafa; stroke:#000; stroke-width:1; stroke-dasharray:4 3; }
+      .t{ font-family:'Times New Roman',Times,serif; fill:#000; }
+      .lbl{ font-size:13px; font-weight:bold; }
+      .xs{ font-size:10.5px; }
+      .ct{ font-size:11px; font-weight:bold; letter-spacing:.6px; }
+      .fl{ stroke:#000; stroke-width:1.4; fill:none; marker-end:url(#s1); }
+      .flt{ stroke:#000; stroke-width:1.4; fill:none; marker-end:url(#s1);
+            stroke-dasharray:5 3; }
+    </style>
+  </defs>
+
+  <!-- BORDA -->
+  <rect class="cam" x="12" y="24" width="236" height="300"/>
+  <text class="t ct" x="26" y="44">CAMADA DE BORDA</text>
+
+  <rect class="cxh" x="30" y="56" width="200" height="44"/>
+  <text class="t lbl" x="42" y="76">ESP32-C3 — v3</text>
+  <text class="t xs" x="42" y="92">DHT11 · umidade · luz</text>
+
+  <rect class="cx" x="30" y="112" width="200" height="50" stroke-width="2.2"/>
+  <text class="t lbl" x="42" y="131">Validação Fail-Fast</text>
+  <text class="t xs" x="42" y="146">1. isnan   2. faixa física</text>
+  <text class="t xs" x="42" y="158">Comum aos dois transportes</text>
+
+  <rect class="cx" x="30" y="174" width="200" height="38"/>
+  <text class="t lbl" x="42" y="192">Payload JSON</text>
+  <text class="t xs" x="42" y="206">255 B — idêntico nos dois</text>
+
+  <rect class="cx" x="30" y="226" width="95" height="46"/>
+  <text class="t lbl" x="42" y="245">MQTT</text>
+  <text class="t xs" x="42" y="259">sessão</text>
+
+  <rect class="cx" x="135" y="226" width="95" height="46"/>
+  <text class="t lbl" x="147" y="245">HTTP</text>
+  <text class="t xs" x="147" y="259">por envio</text>
+
+  <rect class="cx" x="30" y="284" width="200" height="28"/>
+  <text class="t xs" x="42" y="302">LED de alerta local</text>
+
+  <!-- CAMINHO MQTT -->
+  <path class="fl" d="M248 248 L330 248 L330 150 L404 150"/>
+  <text class="t xs" x="258" y="241">296 B/pub</text>
+  <text class="t xs" x="258" y="264">sessão: 34 B</text>
+
+  <!-- CAMINHO HTTP -->
+  <path class="flt" d="M248 268 L330 268 L330 330 L404 330"/>
+  <text class="t xs" x="258" y="290">1095 B/pub</text>
+
+  <!-- BROKER -->
+  <rect class="cam" x="404" y="24" width="250" height="230"/>
+  <text class="t ct" x="418" y="44">BROKER MQTT</text>
+
+  <rect class="cxh" x="420" y="56" width="218" height="44"/>
+  <text class="t lbl" x="432" y="76">broker.emqx.io:8883</text>
+  <text class="t xs" x="432" y="92">TLS verificado · DigiCert</text>
+
+  <rect class="cx" x="420" y="112" width="218" height="58"/>
+  <text class="t lbl" x="432" y="131">Tópicos</text>
+  <text class="t xs" x="432" y="146">plantsync/&lt;id&gt;/telemetria</text>
+  <text class="t xs" x="432" y="160">· /alerta  · /status  · /comando</text>
+
+  <rect class="cx" x="420" y="182" width="218" height="56" stroke-width="2.2"/>
+  <text class="t lbl" x="432" y="201">Last Will and Testament</text>
+  <text class="t xs" x="432" y="216">Publica &quot;offline&quot; sozinho</text>
+  <text class="t xs" x="432" y="230">quando o nó emudece</text>
+
+  <!-- THINGSPEAK -->
+  <rect class="cam" x="404" y="276" width="250" height="100"/>
+  <text class="t ct" x="418" y="296">INGESTÃO REST</text>
+  <rect class="cx" x="420" y="306" width="218" height="54" stroke-dasharray="4 3"/>
+  <text class="t lbl" x="432" y="325">ThingSpeak</text>
+  <text class="t xs" x="432" y="340">Canal 3493443</text>
+  <text class="t xs" x="432" y="353">Base histórica preservada</text>
+
+  <!-- CONSUMIDORES -->
+  <rect class="cam" x="676" y="24" width="212" height="352"/>
+  <text class="t ct" x="690" y="44">CONSUMIDORES</text>
+
+  <path class="fl" d="M654 150 L676 150"/>
+  <path class="fl" d="M654 330 L676 330"/>
+
+  <rect class="cx" x="692" y="56" width="182" height="54"/>
+  <text class="t lbl" x="704" y="75">API FastAPI</text>
+  <text class="t xs" x="704" y="90">assina plantsync/+/telemetria</text>
+  <text class="t xs" x="704" y="103">grava no banco por lote</text>
+
+  <rect class="cx" x="692" y="122" width="182" height="54"/>
+  <text class="t lbl" x="704" y="141">Painel de supervisão</text>
+  <text class="t xs" x="704" y="156">assina plantsync/+/status</text>
+  <text class="t xs" x="704" y="169">quadro de presença</text>
+
+  <rect class="cx" x="692" y="188" width="182" height="50"/>
+  <text class="t lbl" x="704" y="207">Serviço de alertas</text>
+  <text class="t xs" x="704" y="222">assina apenas /alerta</text>
+
+  <rect class="cx" x="692" y="250" width="182" height="56" stroke-width="2.2"/>
+  <text class="t lbl" x="704" y="269">Análise</text>
+  <text class="t xs" x="704" y="284">graus-hora · risco</text>
+  <text class="t xs" x="704" y="297">faixa por fruta, com fonte</text>
+
+  <text class="t xs" x="450" y="404">Traço contínuo: MQTT.   Traço interrompido: HTTP REST, preservado da v2.</text>
+</svg>
+</span>
+<p class="legenda-inf">Figura 1 – Arquitetura com os dois transportes em operação simultânea</p>
+<figcaption>Fonte: elaborado pelos autores (2026).</figcaption>
+</figure>
+
+<!-- ============================ 6 ============================ -->
+<h2 id="s6" class="quebra">6 Método de medição</h2>
+
+<p>
+  A comparação técnica exigida pela atividade foi conduzida por instrumentação própria,
+  e não por estimativa a partir da especificação dos protocolos. O instrumento encontra-se
+  versionado em <code>tools/medir_protocolos.py</code> e é reexecutável.
+</p>
+
+<h3>6.1 Contagem de bytes</h3>
+
+<p>
+  Para que a contagem fosse exata, os pacotes MQTT 3.1.1 foram montados byte a byte sobre
+  um soquete TLS, em vez de delegados a uma biblioteca. Isso permite afirmar quantos bytes
+  efetivamente deixaram o cliente, e não quantos deveriam deixá-lo segundo a norma. Um
+  invólucro de soquete contabiliza cada operação de envio e de recebimento.
+</p>
+<p>
+  Os valores reportados correspondem aos bytes de aplicação entregues à camada TLS, e não
+  aos bytes cifrados na interface de rede. O registro TLS acrescenta de 22 a 45 bytes por
+  bloco, sobrecarga presente em ambos os protocolos e que, portanto, não altera a
+  comparação relativa.
+</p>
+
+<h3>6.2 Verificação de corretude</h3>
+
+<p>
+  A montagem manual de pacotes garante precisão de medida, mas não prova que a
+  implementação esteja correta. A corretude foi verificada em ensaio separado, com a
+  biblioteca <i>paho-mqtt</i>: um cliente assinou um tópico, outro publicou nele, e
+  confirmou-se o recebimento íntegro da carga. O resultado consta na Seção 8.
+</p>
+
+<h3>6.3 Condições dos ensaios</h3>
+
+<p>
+  Cada protocolo transmitiu vinte amostras do mesmo payload JSON de 255 bytes, gerado
+  pela mesma rotina que o firmware utiliza. O ensaio HTTP dirigiu-se à interface real do
+  ThingSpeak, com chave deliberadamente inválida: o objetivo era medir o custo do
+  protocolo, não gravar no canal da equipe. A plataforma responde com <code>400 Bad
+  Request</code> e corpo <code>0</code>, sem persistir nada, mas o tamanho da requisição
+  na rede é idêntico ao de um envio válido.
+</p>
+
+<div class="obs">
+  <p><span class="rot">Declaração de limitação.</span> Os ensaios foram executados em
+  estação de trabalho conectada por rede cabeada, e não no ESP32-C3 em campo. As
+  diferenças de pilha TCP/IP e de desempenho do processador afetam os tempos absolutos,
+  mas não a contagem de bytes, que é determinada pelo protocolo. Os valores de latência
+  devem ser lidos como ordem de grandeza comparativa, não como desempenho do dispositivo
+  embarcado.</p>
+</div>
+
+<!-- ============================ 7 ============================ -->
+<h2 id="s7">7 Resultados técnicos</h2>
+
+<h3>7.1 Custo de estabelecimento da sessão</h3>
+
+<p class="legenda-sup" id="t1">Tabela 1 – Custo de estabelecimento da sessão MQTT</p>
+<table>
+  <thead><tr><th>Etapa</th><th class="cen" style="width:20%">Tempo (ms)</th><th class="cen" style="width:22%">Bytes de aplicação</th></tr></thead>
+  <tbody>
+    <tr><td>Conexão TCP</td><td class="num">260,1</td><td class="num">—</td></tr>
+    <tr><td>Handshake TLS</td><td class="num">228,9</td><td class="num">—</td></tr>
+    <tr><td>CONNECT / CONNACK do MQTT</td><td class="num">699,4</td><td class="num">34</td></tr>
+    <tr class="destaque"><td>Total, pago uma única vez por sessão</td><td class="num">1.188,4</td><td class="num">34</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: dados da pesquisa (2026), ensaio de 26 out. 2026, vinte amostras.
+Tempos referentes à sessão do ensaio de QoS 1; a sessão do ensaio de QoS 0, executada
+minutos antes, totalizou 2.553,1 ms em razão de atraso atípico na conexão TCP
+(1.453,0 ms). A contagem de 34 bytes foi idêntica nas duas, por ser determinada pelo
+protocolo e não pela rede.</p>
+
+<p>
+  O dado relevante não é o tempo, e sim a condição: esse custo é pago <i>uma vez</i>. A
+  partir daí, cada publicação acrescenta apenas o seu próprio pacote. O transporte HTTP
+  do firmware atual, por abrir e encerrar a conexão a cada envio
+  (<code>http.begin()</code> seguido de <code>http.end()</code>), paga o equivalente a
+  cada vinte segundos.
+</p>
+
+<h3>7.2 Custo por publicação em regime permanente</h3>
+
+<p class="legenda-sup" id="t2">Tabela 2 – Custo por publicação em regime permanente</p>
+<table>
+  <thead>
+    <tr><th>Transporte</th><th class="cen">Total (B)</th><th class="cen">Carga útil (B)</th>
+        <th class="cen">Sobrecarga (B)</th><th class="cen">Sobrecarga relativa</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>HTTP/1.1 sobre TLS</td><td class="num">1.095,0</td><td class="num">211,0</td>
+        <td class="num">884,0</td><td class="num">419 %</td></tr>
+    <tr><td>MQTT QoS 0 sobre TLS</td><td class="num">295,6</td><td class="num">254,6</td>
+        <td class="num">41,0</td><td class="num">16 %</td></tr>
+    <tr><td>MQTT QoS 1 sobre TLS</td><td class="num">301,6</td><td class="num">254,6</td>
+        <td class="num">47,0</td><td class="num">18 %</td></tr>
+    <tr class="destaque"><td>Razão HTTP / MQTT QoS 0</td><td class="num">3,7 ×</td>
+        <td class="num">—</td><td class="num">21,6 ×</td><td class="num">—</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: dados da pesquisa (2026).</p>
+
+<p>
+  A sobrecarga de 884 bytes do HTTP decompõe-se em cabeçalhos de requisição
+  (<code>Host</code>, <code>User-Agent</code>, <code>Connection</code>) e, sobretudo, em
+  879 bytes de cabeçalhos de resposta devolvidos pela plataforma, para um corpo útil de
+  um único caractere. O MQTT, em contrapartida, gasta 41 bytes por publicação: um byte de
+  tipo e sinalizadores, um a quatro bytes de comprimento variável e o nome do tópico
+  precedido de seu tamanho. Não há cabeçalhos textuais, método, caminho ou negociação.
+</p>
+<p>
+  Vale registrar que a carga útil do MQTT (254,6 B) é maior que a do HTTP (211,0 B), por
+  transportar o documento JSON completo em vez de uma cadeia de consulta. Ainda assim, o
+  total é 3,7 vezes menor — o que significa que o MQTT entrega <i>mais informação</i> por
+  um quarto do tráfego.
+</p>
+
+<h3>7.3 Latência</h3>
+
+<div class="obs">
+  <p><span class="rot">Advertência metodológica.</span> As três latências não são
+  grandezas equivalentes e não devem ser comparadas indistintamente. O QoS 0 não possui
+  confirmação: o valor medido é o custo local de entregar os bytes ao buffer TLS, e não
+  prova de entrega. Concluir daí que o MQTT é milhares de vezes mais rápido seria erro de
+  interpretação. A comparação legítima de latência é entre <b>MQTT QoS 1 e HTTPS</b>,
+  pois ambos aguardam confirmação do servidor.</p>
+</div>
+
+<p class="legenda-sup" id="t3">Tabela 3 – Latência observada por publicação</p>
+<table>
+  <thead>
+    <tr><th>Transporte</th><th class="cen">Média (ms)</th><th class="cen">Mínimo (ms)</th>
+        <th class="cen">Máximo (ms)</th><th style="width:30%">O que o valor mede</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>HTTP/1.1 sobre TLS</td><td class="num">475,70</td><td class="num">390,51</td>
+        <td class="num">580,25</td><td>Operação completa: conexão, TLS, requisição e resposta.</td></tr>
+    <tr><td>MQTT QoS 1</td><td class="num">299,87</td><td class="num">201,08</td>
+        <td class="num">989,95</td><td>Ida e volta até a confirmação PUBACK do broker.</td></tr>
+    <tr><td>MQTT QoS 0</td><td class="num">0,05</td><td class="num">0,02</td>
+        <td class="num">0,23</td><td>Apenas entrega ao buffer local. <b>Não</b> é prova de entrega.</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: dados da pesquisa (2026).</p>
+
+<p>
+  Na comparação legítima, o MQTT com confirmação é cerca de 37 % mais rápido que o HTTPS,
+  oferecendo a mesma garantia de entrega. A dispersão maior observada no QoS 1 — máximo de
+  989,95 ms contra 580,25 ms do HTTP — decorre de o ensaio utilizar broker público
+  compartilhado, sujeito a carga de terceiros, e não deve ser atribuída ao protocolo.
+</p>
+
+<h3>7.4 Projeção para uma viagem completa</h3>
+
+<p>
+  A travessia de referência do projeto, de Petrolina ao porto de embarque, dura
+  aproximadamente 72 horas. Ao intervalo de vinte segundos adotado, isso corresponde a
+  12.960 publicações por lote monitorado.
+</p>
+
+<p class="legenda-sup" id="t4">Tabela 4 – Projeção de tráfego para uma viagem de 72 horas</p>
+<table>
+  <thead><tr><th>Transporte</th><th class="cen">Publicações</th><th class="cen">Tráfego total</th><th class="cen">Diferença</th></tr></thead>
+  <tbody>
+    <tr><td>HTTP/1.1 sobre TLS</td><td class="num">12.960</td><td class="num">13.858,6 KiB</td><td class="num">—</td></tr>
+    <tr><td>MQTT QoS 0 (1 sessão + 12.960 publicações)</td><td class="num">12.960</td>
+        <td class="num">3.741,2 KiB</td><td class="num">−73,0 %</td></tr>
+    <tr class="destaque"><td>Economia por lote monitorado</td><td class="num">—</td>
+        <td class="num">10.117,4 KiB</td><td class="num">≈ 9,9 MiB</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: dados da pesquisa (2026), projeção a partir das medições da Tabela 2.</p>
+
+<p>
+  Em enlace Wi-Fi de pátio, 9,9 MiB por lote é quantidade desprezível. O cálculo muda de
+  significado quando o nó opera em trânsito, sobre rede celular: nesse regime, o tráfego
+  é tarifado e a cobertura é intermitente, e a economia deixa de ser conveniência para se
+  tornar fator de custo operacional e de resiliência.
+</p>
+
+<!-- ============================ 8 ============================ -->
+<h2 id="s8" class="quebra">8 Análise funcional</h2>
+
+<h3>8.1 Verificação de entrega fim a fim</h3>
+
+<p>
+  O ensaio funcional confirmou a entrega íntegra da mensagem. Um cliente assinou o tópico
+  de telemetria, outro publicou nele com QoS 1, e a carga foi recebida sem alteração:
+  255 bytes publicados, 255 bytes recebidos, com os campos <code>device_id</code>,
+  <code>temperatura_c</code> e <code>status</code> preservados. O registro integral
+  encontra-se em <code>docs/evidencias/mqtt-medicao.txt</code>.
+</p>
+
+<h3>8.2 Comparação funcional</h3>
+
+<p class="legenda-sup" id="q6">Quadro 6 – Comparação funcional entre os transportes</p>
+<table>
+  <thead><tr><th style="width:26%">Aspecto</th><th style="width:30%">HTTP/REST</th><th>MQTT</th></tr></thead>
+  <tbody>
+    <tr><td>Modelo</td><td>Requisição e resposta, síncrono</td>
+        <td>Publicação e assinatura, assíncrono e desacoplado</td></tr>
+    <tr><td>Estado</td><td>Sem estado; cada envio é independente</td>
+        <td>Sessão persistente, com <i>keep-alive</i></td></tr>
+    <tr><td>Múltiplos consumidores</td><td>Cada um consulta o servidor por conta própria</td>
+        <td>O broker replica a publicação para todos os assinantes</td></tr>
+    <tr><td>Detecção de nó ausente</td><td><b>Não suportada.</b> O silêncio é indistinguível de ausência de dados</td>
+        <td><b>Last Will.</b> O broker anuncia a queda sem intervenção de ninguém</td></tr>
+    <tr><td>Estado corrente para quem chega</td><td>Exige consulta ao histórico</td>
+        <td>Retenção entrega a última mensagem na assinatura</td></tr>
+    <tr><td>Garantia de entrega</td><td>Implícita no código de estado; sem retransmissão automática</td>
+        <td>Selecionável por mensagem (QoS 0, 1 ou 2)</td></tr>
+    <tr><td>Comando para o dispositivo</td><td>Exige consulta periódica a um endpoint</td>
+        <td>Entrega direta pelo mesmo enlace já aberto</td></tr>
+    <tr><td>Depuração</td><td>Simples: <code>curl</code> e navegador bastam</td>
+        <td>Exige cliente MQTT específico</td></tr>
+    <tr><td>Infraestrutura</td><td>Nenhuma além do servidor de aplicação</td>
+        <td>Exige operar e manter um broker</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026).</p>
+
+<!-- ============================ 9 ============================ -->
+<h2 id="s9">9 Conclusão: a decisão muda?</h2>
+
+<p>
+  <b>Sim, a conclusão se inverte — mas por motivo distinto daquele que a decisão original
+  antecipava.</b>
+</p>
+<p>
+  O Checkpoint 01 previa que a migração para MQTT se justificaria quando o projeto
+  adotasse operação por bateria e rádio de baixo consumo. As medições confirmam que o
+  ganho de eficiência existe e é expressivo — 73 % de redução de tráfego, sobrecarga de
+  protocolo 21,6 vezes menor —, porém esse não é o argumento decisivo no estágio atual.
+  Com alimentação cabeada e enlace Wi-Fi, economizar 9,9 MiB por viagem permanece sendo
+  o que a decisão original afirmou: insuficiente, por si só, para justificar a operação
+  de um broker.
+</p>
+<p>
+  O que altera o julgamento é de outra natureza. A decisão anterior avaliou o MQTT como
+  um protocolo mais econômico e concluiu coerentemente dentro dessa premissa. A
+  implementação revelou que o MQTT é, antes disso, um protocolo com capacidades que o
+  HTTP estruturalmente não possui — e uma delas responde a uma lacuna que o próprio
+  PlantSync já havia identificado.
+</p>
+<p>
+  O problema declarado do projeto é que a carga viaja sem registro e o dano só aparece no
+  destino. A versão anterior resolvia parcialmente esse problema: enquanto o nó
+  transmitisse, havia registro. Mas se o dispositivo falhasse no meio da estrada, o
+  sistema não tinha como distinguir um nó em silêncio de uma viagem sem ocorrências — o
+  ponto cego permanecia, apenas deslocado. O <i>Last Will and Testament</i> fecha essa
+  lacuna sem exigir nenhuma lógica adicional de supervisão: o broker anuncia a ausência
+  por conta própria.
+</p>
+<p>
+  Acrescente-se que o cenário de operação do projeto é justamente o de um dispositivo em
+  trânsito, sob cobertura intermitente. A sessão persistente, o QoS selecionável e a
+  reconexão com retomada de assinaturas são mecanismos desenhados para essa condição,
+  ao passo que o padrão de abrir e encerrar conexão a cada envio é o pior caso possível
+  para um enlace instável.
+</p>
+
+<div class="obs">
+  <p><span class="rot">Decisão arquitetural revista.</span> O MQTT passa a ser o
+  transporte preferencial do módulo de borda, não por eficiência de tráfego, mas por
+  oferecer detecção de ausência do dispositivo, entrega a múltiplos consumidores e
+  garantia de entrega selecionável — capacidades ausentes no modelo REST. O transporte
+  HTTP é preservado no firmware, sob chave de compilação, como caminho de compatibilidade
+  com a base histórica do canal ThingSpeak e como referência para medições futuras. A
+  premissa da decisão anterior — de que o benefício do MQTT seria essencialmente
+  energético — é retificada.</p>
+</div>
+
+<!-- ============================ 10 ============================ -->
+<h2 id="s10">10 Limitações e próximos passos</h2>
+
+<p class="legenda-sup" id="q7">Quadro 7 – Limitações identificadas</p>
+<table>
+  <thead><tr><th style="width:9%">Cód.</th><th style="width:30%">Limitação</th><th>Situação e encaminhamento</th></tr></thead>
+  <tbody>
+    <tr><td class="id">L01</td><td>Compilação do firmware não verificada</td>
+        <td>A estação de trabalho utilizada não dispõe de <i>arduino-cli</i> nem de PlatformIO, e a instalação de binários externos está bloqueada pela política do ambiente. Foram realizadas verificações estáticas — balanceamento de chaves, parênteses e diretivas condicionais, e conferência das assinaturas da biblioteca PubSubClient. <b>A equipe deve compilar e gravar antes do envio.</b></td></tr>
+    <tr><td class="id">L02</td><td>PubSubClient publica apenas em QoS 0</td>
+        <td>Limitação documentada do projeto upstream: a biblioteca aceita QoS 1 na assinatura, mas não na publicação. Os ensaios de QoS 1 foram conduzidos com implementação própria. Para QoS 1 no dispositivo, avaliar <i>AsyncMqttClient</i> ou a pilha <i>esp-mqtt</i> nativa do ESP-IDF.</td></tr>
+    <tr><td class="id">L03</td><td>Verificação TLS do broker não fixada</td>
+        <td>O firmware recorre a <code>setInsecure()</code> enquanto <code>MQTT_CA_CERT</code> não for definido, o que aceita qualquer certificado e contraria o RNF02. Aceitável no ensaio, inaceitável em operação. O arquivo-modelo de credenciais já prevê o campo.</td></tr>
+    <tr><td class="id">L04</td><td>Broker público compartilhado</td>
+        <td>Sem autenticação, sem isolamento e sem garantia de disponibilidade. A arquitetura-alvo prevê Mosquitto próprio em contêiner, com credenciais e certificado da equipe.</td></tr>
+    <tr><td class="id">L05</td><td>Ensaios conduzidos fora do dispositivo</td>
+        <td>As medições foram feitas em estação de trabalho. A contagem de bytes é determinada pelo protocolo e não varia, mas os tempos absolutos no ESP32-C3 serão diferentes. Repetir a coleta com o nó em campo.</td></tr>
+    <tr><td class="id">L06</td><td>Consumidor MQTT ausente no backend</td>
+        <td>A API FastAPI ingere por consulta ao ThingSpeak (<code>POST /api/sincronizar</code>). Para aproveitar o MQTT de ponta a ponta, falta um assinante que grave diretamente no banco. Representado por traço contínuo na Figura 1 apenas como arquitetura-alvo.</td></tr>
+  </tbody>
+</table>
+<p class="fonte">Fonte: elaborado pelos autores (2026).</p>
+
+<h3>10.1 Próximos passos</h3>
+
+<ol>
+  <li>Compilar, gravar e validar o firmware v3 no ESP32-C3, registrando o <i>log</i> serial dos dois transportes em operação simultânea.</li>
+  <li>Implementar no backend FastAPI um assinante MQTT que grave a telemetria diretamente no banco, dispensando a consulta periódica ao ThingSpeak.</li>
+  <li>Provisionar broker Mosquitto próprio em contêiner, com autenticação e certificado fixado no firmware, encerrando L03 e L04.</li>
+  <li>Repetir a coleta comparativa com o nó em campo, sob enlace celular, cenário em que a economia de tráfego medida passa a ter efeito econômico direto.</li>
+  <li>Exercitar o tópico de comando para reconfigurar em trânsito o intervalo de envio e a faixa segura da fruta, sem regravação de firmware.</li>
+</ol>
+
+<!-- ============================ EVIDÊNCIAS ============================ -->
+<h2 class="quebra">11 Evidências</h2>
+
+<h3>11.1 Repositório</h3>
+
+<p class="sem-recuo">
+  Código-fonte, instrumento de medição e saídas brutas:<br>
+  <code>https://github.com/Otoque/PlantSync</code>
+</p>
+
+<p class="sem-recuo" style="font-size:11pt;">
+  Arquivos pertinentes a este relatório:
+</p>
+<ul>
+  <li><code>hardware/plantsync-edge/main.ino</code> — firmware v3 com os dois transportes</li>
+  <li><code>hardware/plantsync-edge/credentials.h.example</code> — modelo de credenciais MQTT</li>
+  <li><code>tools/medir_protocolos.py</code> — instrumento de medição, reexecutável</li>
+  <li><code>docs/evidencias/mqtt-medicao.txt</code> — saída integral dos ensaios</li>
+  <li><code>docs/evidencias/mqtt-medicao.json</code> — mesmos dados em formato estruturado</li>
+</ul>
+
+<h3>11.2 Saída dos ensaios de medição</h3>
+
+<figure>
+  <span class="preencher">Inserir o registro visual da execução de
+  <code>tools/medir_protocolos.py</code>, exibindo as medições dos três ensaios.
+  O conteúdo textual integral consta em <code>docs/evidencias/mqtt-medicao.txt</code>.</span>
+  <p class="legenda-inf">Figura 2 – Execução do instrumento de medição</p>
+  <figcaption>Fonte: acervo dos autores (2026).</figcaption>
+</figure>
+
+<h3>11.3 Registro serial do firmware com MQTT</h3>
+
+<figure>
+  <span class="preencher">Inserir o registro do monitor serial com o firmware v3 gravado,
+  evidenciando a conexão ao broker, os tópicos montados, a publicação MQTT e a requisição
+  HTTP no mesmo ciclo.</span>
+  <p class="legenda-inf">Figura 3 – Monitor serial com os dois transportes ativos</p>
+  <figcaption>Fonte: acervo dos autores (2026).</figcaption>
+</figure>
+
+<h3>11.4 Cliente MQTT recebendo a telemetria</h3>
+
+<figure>
+  <span class="preencher">Inserir o registro visual de um cliente MQTT — MQTT Explorer ou
+  <code>mosquitto_sub</code> — assinando <code>plantsync/+/telemetria</code> e exibindo as
+  mensagens recebidas do dispositivo.</span>
+  <p class="legenda-inf">Figura 4 – Assinante recebendo as publicações do nó</p>
+  <figcaption>Fonte: acervo dos autores (2026).</figcaption>
+</figure>
+
+<h3>11.5 Demonstração do Last Will and Testament</h3>
+
+<figure>
+  <span class="preencher">Inserir o registro visual do tópico de status antes e depois da
+  desconexão abrupta do dispositivo, evidenciando a transição de <code>online</code> para
+  <code>offline</code> publicada pelo próprio broker. Sugestão de roteiro: assinar
+  <code>plantsync/+/status</code>, desligar a alimentação do nó e aguardar o
+  <i>keep-alive</i> expirar.</span>
+  <p class="legenda-inf">Figura 5 – Last Will publicado pelo broker após a queda do nó</p>
+  <figcaption>Fonte: acervo dos autores (2026).</figcaption>
+</figure>
+
+<!-- ============================ REFERÊNCIAS ============================ -->
+<h2 id="ref" class="quebra">Referências</h2>
+
+<div class="refs">
+<p>BANKS, Andrew; GUPTA, Rahul (ed.). <b>MQTT version 3.1.1</b>: OASIS standard.
+Burlington: OASIS, 2014. Disponível em:
+http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html. Acesso em:
+26 out. 2026.</p>
+
+<p>ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS. <b>NBR 14724</b>: informação e documentação:
+trabalhos acadêmicos: apresentação. Rio de Janeiro, 2011.</p>
+
+<p>COOPER, D. <i>et al.</i> <b>RFC 5280</b>: Internet X.509 public key infrastructure
+certificate and certificate revocation list (CRL) profile. [<i>S. l.</i>]: Internet
+Engineering Task Force, 2008.</p>
+
+<p>ESPRESSIF SYSTEMS. <b>ESP32-C3 technical reference manual</b>. Xangai: Espressif
+Systems, 2024.</p>
+
+<p>FIELDING, Roy T.; RESCHKE, Julian (ed.). <b>RFC 7230</b>: hypertext transfer protocol
+(HTTP/1.1): message syntax and routing. [<i>S. l.</i>]: Internet Engineering Task Force,
+2014.</p>
+
+<p>MATHWORKS. <b>ThingSpeak documentation</b>: MQTT API. Natick: The MathWorks, 2026.
+Disponível em: https://www.mathworks.com/help/thingspeak/mqtt-basics.html. Acesso em:
+26 out. 2026.</p>
+
+<p>O’LEARY, Nick. <b>PubSubClient</b>: a client library for MQTT messaging. [<i>S. l.</i>],
+2024. Disponível em: https://github.com/knolleary/pubsubclient. Acesso em: 26 out. 2026.</p>
+
+<p>RESCORLA, Eric. <b>RFC 8446</b>: the transport layer security (TLS) protocol version
+1.3. [<i>S. l.</i>]: Internet Engineering Task Force, 2018.</p>
+</div>
+
+</body>
+</html>
