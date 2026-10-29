@@ -70,19 +70,22 @@ def gerar_token_laudo():
     return secrets.token_urlsafe(16)
 
 
+def garantir_que_nao_ha_lote_em_transito(sessao):
+    """Existe um so sensor (um canal), entao so um lote viaja por vez."""
+    atual = lote_em_transito(sessao)
+    if atual is not None:
+        raise ErroDeRegra(
+            f"O lote {atual.id} ainda está em trânsito. Encerre-o antes de cadastrar outro."
+        )
+
+
 def criar_lote(sessao, dados):
     """
     Cadastra um lote. O lote guarda uma copia da faixa segura, para que
     editar a fruta depois nao mude a analise dele.
     """
     fruta = fruta_escolhida(sessao, dados.fruta)
-
-    # Existe um so sensor (um canal), entao so um lote viaja por vez.
-    atual = lote_em_transito(sessao)
-    if atual is not None:
-        raise ErroDeRegra(
-            f"O lote {atual.id} ainda está em trânsito. Encerre-o antes de cadastrar outro."
-        )
+    garantir_que_nao_ha_lote_em_transito(sessao)
 
     faixa = escolher_faixa(fruta, dados.faixa_segura)
     lote = Lote(

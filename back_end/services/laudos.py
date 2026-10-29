@@ -10,7 +10,12 @@ Laudo do lote por QR Code: uma visao publica e uma visao completa.
 
 from models.tabelas import Fruta, Lote
 from services.erros import ErroNaoEncontrado
-from services.lotes import buscar_e_analisar, leituras_para_grafico, lote_detalhado_json
+from services.lotes import (
+    analise_para_json,
+    buscar_e_analisar,
+    leituras_para_grafico,
+    lote_basico_json,
+)
 
 # A mesma mensagem para codigo e token, para nao dar pistas de quais existem.
 MENSAGEM_NAO_ENCONTRADO = "Código não encontrado."
@@ -55,9 +60,11 @@ def visao_publica_json(sessao, lote):
 
 
 def laudo_completo_json(sessao, lote):
-    """O laudo do produtor e do importador: lote, analise e a curva da viagem."""
-    laudo = lote_detalhado_json(lote, buscar_e_analisar(sessao, lote))
-    # Quem abriu o laudo ja tem o token; nao precisa devolve-lo.
-    del laudo["token_laudo"]
+    """
+    O laudo do produtor e do importador: lote, analise e a curva da viagem.
+    Nao devolve o token_laudo: quem abriu o laudo ja o tem.
+    """
+    laudo = lote_basico_json(lote)
+    laudo["analise"] = analise_para_json(buscar_e_analisar(sessao, lote))
     laudo["leituras"] = leituras_para_grafico(sessao, lote)
     return laudo

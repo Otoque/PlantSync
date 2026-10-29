@@ -15,6 +15,7 @@ Cada leitura e um dicionario com as chaves:
 Atencao aos nomes: na "faixa", temp_min_c e temp_max_c sao os LIMITES seguros
 da fruta; no resultado da analise, sao a menor e a maior temperatura MEDIDAS.
 Os nomes seguem o contrato da API (docs/api-contrato.md).
+Nas funcoes, piso = temp_min_c da faixa e teto = temp_max_c da faixa.
 """
 
 # Faixa fisica do sensor: fora dela a leitura e defeito, nao fenomeno.
@@ -47,8 +48,8 @@ ACOES_CURTAS = {
     "VERMELHO": "redirecionar para mercado interno ou processamento",
 }
 
-# Quanto maior o numero, mais grave. VERDE (0) nao gera alerta.
-GRAVIDADE = {"VERDE": 0, "AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
+# Quanto maior o numero, mais grave. VERDE e SEM_DADOS (0) nao geram alerta.
+GRAVIDADE = {"SEM_DADOS": 0, "VERDE": 0, "AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
 
 
 def temperatura_valida(temperatura):
@@ -72,18 +73,18 @@ def fora_da_faixa(valor, minimo, maximo):
     return valor < minimo or valor > maximo
 
 
-def lado_da_faixa(temperatura, temp_min, temp_max):
+def lado_da_faixa(temperatura, piso, teto):
     """Devolve "acima" (calor), "abaixo" (frio) ou None (dentro da faixa)."""
-    if temperatura > temp_max:
+    if temperatura > teto:
         return "acima"
-    if temperatura < temp_min:
+    if temperatura < piso:
         return "abaixo"
     return None
 
 
-def calcular_graus_hora(leituras, temp_min, temp_max):
+def calcular_graus_hora(leituras, piso, teto):
     """
-    Soma, separados, o calor acima de temp_max e o frio abaixo de temp_min,
+    Soma, separados, o calor acima do teto e o frio abaixo do piso,
     cada um multiplicado pelo tempo. Devolve os dois: (acima, abaixo).
 
     Igual ao pipeline analitico: a diferenca de cada leitura vale para o
@@ -97,8 +98,8 @@ def calcular_graus_hora(leituras, temp_min, temp_max):
         if anterior is not None:
             intervalo_h = (leitura["data_hora"] - anterior["data_hora"]).total_seconds() / 3600
             temperatura = leitura["temperatura_c"]
-            acima += max(0.0, temperatura - temp_max) * intervalo_h
-            abaixo += max(0.0, temp_min - temperatura) * intervalo_h
+            acima += max(0.0, temperatura - teto) * intervalo_h
+            abaixo += max(0.0, piso - temperatura) * intervalo_h
         anterior = leitura
     return acima, abaixo
 
@@ -152,36 +153,45 @@ def detectar_eventos_porta(leituras):
     return eventos
 
 
-def detectar_trechos_fora_da_faixa(leituras, temp_min, temp_max):
+def novo_trecho(leitura, lado):
+    """Abre um trecho fora da faixa a partir de uma leitura."""
+    return {
+        "inicio": leitura["data_hora"],
+        "fim": leitura["data_hora"],
+        "lado": lado,
+        "temp_extrema_c": leitura["temperatura_c"],
+    }
+
+
+def atualizar_trecho(trecho, leitura):
     """
-    Junta leituras seguidas do mesmo lado da faixa em um trecho. Cada trecho
-    guarda o lado e a temperatura mais distante da faixa (a maior, se acima;
-    a menor, se abaixo).
+    Estende o trecho ate a leitura e guarda a temperatura mais distante
+    da faixa: a maior, se o trecho e de calor; a menor, se e de frio.
     """
+    trecho["fim"] = leitura["data_hora"]
+    temperatura = leitura["temperatura_c"]
+    if trecho["lado"] == "acima":
+        trecho["temp_extrema_c"] = max(trecho["temp_extrema_c"], temperatura)
+    else:
+        trecho["temp_extrema_c"] = min(trecho["temp_extrema_c"], temperatura)
+
+
+def detectar_trechos_fora_da_faixa(leituras, piso, teto):
+    """Junta leituras seguidas do mesmo lado da faixa (calor ou frio) em um trecho."""
     trechos = []
     trecho_atual = None
     for leitura in leituras:
-        temperatura = leitura["temperatura_c"]
-        lado = lado_da_faixa(temperatura, temp_min, temp_max)
+        lado = lado_da_faixa(leitura["temperatura_c"], piso, teto)
 
-        # Mudou de lado (ou voltou para a faixa): fecha o trecho aberto.
-        if trecho_atual is not None and lado != trecho_atual["lado"]:
-            trechos.append(trecho_atual)
-            trecho_atual = None
-        if lado is None:
-            continue
-
-        if trecho_atual is None:
-            trecho_atual = {
-                "inicio": leitura["data_hora"],
-                "lado": lado,
-                "temp_extrema_c": temperatura,
-            }
-        elif lado == "acima":
-            trecho_atual["temp_extrema_c"] = max(trecho_atual["temp_extrema_c"], temperatura)
+        if trecho_atual is not None and lado == trecho_atual["lado"]:
+            atualizar_trecho(trecho_atual, leitura)
         else:
-            trecho_atual["temp_extrema_c"] = min(trecho_atual["temp_extrema_c"], temperatura)
-        trecho_atual["fim"] = leitura["data_hora"]
+            # Mudou de lado ou voltou para a faixa: fecha o trecho aberto.
+            if trecho_atual is not None:
+                trechos.append(trecho_atual)
+            trecho_atual = None
+            if lado is not None:
+                trecho_atual = novo_trecho(leitura, lado)
 
     if trecho_atual is not None:
         trechos.append(trecho_atual)
