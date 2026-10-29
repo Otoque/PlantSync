@@ -1,5 +1,7 @@
 """Regras dos lotes: cadastro, encerramento, leituras, analise e formato de resposta."""
 
+import secrets
+
 from models.tabelas import Fruta, Leitura, Lote
 from services.analise import analisar_lote, fora_da_faixa, limpar_leituras, porta_aberta
 from services.datas import agora_utc, formatar_utc, para_utc
@@ -56,6 +58,18 @@ def inicio_do_lote(dados):
     return para_utc(dados.inicio)
 
 
+def gerar_codigo_publico():
+    """Codigo curto e aleatorio que vai no QR Code (8 caracteres)."""
+    # O modulo secrets gera texto aleatorio proprio para senhas e links secretos:
+    # nao da para adivinhar o codigo de um lote a partir do codigo de outro.
+    return secrets.token_urlsafe(6)
+
+
+def gerar_token_laudo():
+    """Segredo longo e aleatorio que abre o laudo completo (22 caracteres)."""
+    return secrets.token_urlsafe(16)
+
+
 def criar_lote(sessao, dados):
     """
     Cadastra um lote. O lote guarda uma copia da faixa segura, para que
@@ -73,10 +87,13 @@ def criar_lote(sessao, dados):
     faixa = escolher_faixa(fruta, dados.faixa_segura)
     lote = Lote(
         fruta_id=fruta.id,
+        produtor=dados.produtor,
         origem=dados.origem,
         porto_destino=dados.porto_destino,
         inicio=inicio_do_lote(dados),
         fim=None,
+        codigo_publico=gerar_codigo_publico(),
+        token_laudo=gerar_token_laudo(),
         temp_min_c=faixa.temp_min_c,
         temp_max_c=faixa.temp_max_c,
         umidade_min_pct=faixa.umidade_min_pct,
@@ -158,11 +175,13 @@ def lote_basico_json(lote):
     return {
         "id": lote.id,
         "fruta": lote.fruta_id,
+        "produtor": lote.produtor,
         "origem": lote.origem,
         "porto_destino": lote.porto_destino,
         "inicio": formatar_utc(lote.inicio),
         "fim": formatar_utc(lote.fim),
         "status": status,
+        "codigo_publico": lote.codigo_publico,
         "faixa_segura": faixa_do_lote(lote),
     }
 
@@ -172,7 +191,8 @@ def lote_para_json(lote, analise):
     resposta = lote_basico_json(lote)
     resposta["risco"] = {
         "nivel": analise["nivel"],
-        "graus_hora": analise["graus_hora"],
+        "graus_hora_acima": analise["graus_hora_acima"],
+        "graus_hora_abaixo": analise["graus_hora_abaixo"],
     }
     return resposta
 
@@ -182,31 +202,35 @@ def lote_resumo_json(sessao, lote):
     return lote_para_json(lote, buscar_e_analisar(sessao, lote))
 
 
-def lote_detalhado_json(lote, analise):
-    """Formato completo: o lote com toda a analise da viagem."""
-    eventos = []
-    for evento in analise["eventos_porta"]:
-        eventos.append({
-            "inicio": formatar_utc(evento["inicio"]),
-            "fim": formatar_utc(evento["fim"]),
-            "duracao_min": evento["duracao_min"],
-            "lux_max": evento["lux_max"],
-        })
+def intervalos_para_json(intervalos):
+    """Copia cada trecho ou evento trocando inicio e fim por texto (formato do contrato)."""
+    resposta = []
+    for intervalo in intervalos:
+        copia = dict(intervalo)
+        copia["inicio"] = formatar_utc(intervalo["inicio"])
+        copia["fim"] = formatar_utc(intervalo["fim"])
+        resposta.append(copia)
+    return resposta
 
+
+def analise_para_json(analise):
+    """Copia a analise trocando as datas por texto (formato do contrato)."""
+    resposta = dict(analise)
+    resposta["primeira_leitura"] = formatar_utc(analise["primeira_leitura"])
+    resposta["ultima_leitura"] = formatar_utc(analise["ultima_leitura"])
+    resposta["trechos_fora_faixa"] = intervalos_para_json(analise["trechos_fora_faixa"])
+    resposta["eventos_porta"] = intervalos_para_json(analise["eventos_porta"])
+    return resposta
+
+
+def lote_detalhado_json(lote, analise):
+    """
+    Formato completo, so para o painel interno: o lote, o token do laudo
+    e toda a analise da viagem.
+    """
     resposta = lote_basico_json(lote)
-    resposta["analise"] = {
-        "amostras": analise["amostras"],
-        "amostras_fora_faixa": analise["amostras_fora_faixa"],
-        "primeira_leitura": formatar_utc(analise["primeira_leitura"]),
-        "ultima_leitura": formatar_utc(analise["ultima_leitura"]),
-        "temp_min_c": analise["temp_min_c"],
-        "temp_max_c": analise["temp_max_c"],
-        "temp_media_c": analise["temp_media_c"],
-        "graus_hora": analise["graus_hora"],
-        "nivel": analise["nivel"],
-        "recomendacao": analise["recomendacao"],
-        "eventos_porta": eventos,
-    }
+    resposta["token_laudo"] = lote.token_laudo
+    resposta["analise"] = analise_para_json(analise)
     return resposta
 
 

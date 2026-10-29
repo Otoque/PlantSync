@@ -267,7 +267,8 @@ def test_alerta_tem_todos_os_campos_do_contrato(cliente, banco):
     gravar_leituras(banco, leituras_por_hora(5.0))
 
     alerta = cliente.get("/api/alertas").json()[0]
-    assert set(alerta.keys()) == {"lote_id", "fruta", "tipo", "nivel", "mensagem", "data_hora"}
+    campos = {"lote_id", "fruta", "tipo", "lado", "nivel", "mensagem", "data_hora"}
+    assert set(alerta.keys()) == campos
 
 
 def test_datas_dos_alertas_terminam_em_z(cliente, banco):
@@ -391,6 +392,6 @@ def test_leituras_sincronizadas_entram_na_analise_e_nos_alertas(cliente, monkeyp
     assert resposta["novas"] == 11
 
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora"] == 30.0
+    assert analise["graus_hora_acima"] == 30.0
     assert analise["nivel"] == "LARANJA"
     assert alertas_do_tipo(cliente, "risco_termico")[0]["nivel"] == "LARANJA"

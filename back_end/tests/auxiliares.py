@@ -14,6 +14,7 @@ INICIO = datetime(2026, 10, 24, 9, 0, 0)  # 24/10/2026 09:00 UTC
 
 LOTE_UVA = {
     "fruta": "uva",
+    "produtor": "Sítio Boa Vista",
     "origem": "Packing house Petrolina",
     "porto_destino": "Suape",
     "inicio": "2026-10-24T09:00:00Z",
@@ -47,6 +48,7 @@ def fruta_melao(**mudancas):
         "temp_max_c": 5.0,
         "umidade_min_pct": 90.0,
         "umidade_max_pct": 95.0,
+        "risco_no_frio": None,
         "fonte": "Referência da faixa",
     }
     corpo.update(mudancas)

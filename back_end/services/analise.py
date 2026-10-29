@@ -5,6 +5,10 @@ A logica foi trazida de analytics/eda_plantsync.py (funcoes enriquecer,
 classificar_carga e detectar_eventos_porta), reescrita sem pandas para a API
 ficar leve. Se um limiar mudar aqui, mude tambem no pipeline analitico.
 
+Diferenca em relacao ao pipeline: aqui os graus-hora sao contados nos DOIS
+lados da faixa (calor acima do teto e frio abaixo do piso). Na manga, o frio
+abaixo do piso causa corte negro (ver docs/api-contrato.md).
+
 Cada leitura e um dicionario com as chaves:
     data_hora (datetime), temperatura_c, umidade_pct, luminosidade_lux
 
@@ -23,6 +27,7 @@ LUX_PORTA_ABERTA = 300.0
 
 # Limiares de graus-hora definidos pela equipe no pipeline analitico.
 # Ainda precisam ser validados com um produtor parceiro.
+# Valem igualmente para o lado quente e para o lado frio.
 LIMITE_AMARELO = 5.0
 LIMITE_LARANJA = 20.0
 LIMITE_VERMELHO = 50.0
@@ -42,8 +47,8 @@ ACOES_CURTAS = {
     "VERMELHO": "redirecionar para mercado interno ou processamento",
 }
 
-# Niveis que geram alerta. Quanto maior o numero, mais grave.
-GRAVIDADE = {"AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
+# Quanto maior o numero, mais grave. VERDE (0) nao gera alerta.
+GRAVIDADE = {"VERDE": 0, "AMARELO": 1, "LARANJA": 2, "VERMELHO": 3}
 
 
 def temperatura_valida(temperatura):
@@ -67,22 +72,35 @@ def fora_da_faixa(valor, minimo, maximo):
     return valor < minimo or valor > maximo
 
 
-def calcular_graus_hora(leituras, temp_max):
-    """
-    Soma o excesso de temperatura acima de temp_max multiplicado pelo tempo.
+def lado_da_faixa(temperatura, temp_min, temp_max):
+    """Devolve "acima" (calor), "abaixo" (frio) ou None (dentro da faixa)."""
+    if temperatura > temp_max:
+        return "acima"
+    if temperatura < temp_min:
+        return "abaixo"
+    return None
 
-    Igual ao pipeline analitico: o excesso de cada leitura vale para o
-    intervalo desde a leitura anterior. As leituras devem vir em ordem.
+
+def calcular_graus_hora(leituras, temp_min, temp_max):
     """
-    total = 0.0
+    Soma, separados, o calor acima de temp_max e o frio abaixo de temp_min,
+    cada um multiplicado pelo tempo. Devolve os dois: (acima, abaixo).
+
+    Igual ao pipeline analitico: a diferenca de cada leitura vale para o
+    intervalo desde a leitura anterior. As leituras devem vir em ordem.
+    Leitura exatamente no limite soma zero.
+    """
+    acima = 0.0
+    abaixo = 0.0
     anterior = None
     for leitura in leituras:
         if anterior is not None:
             intervalo_h = (leitura["data_hora"] - anterior["data_hora"]).total_seconds() / 3600
-            excesso = max(0.0, leitura["temperatura_c"] - temp_max)
-            total += excesso * intervalo_h
+            temperatura = leitura["temperatura_c"]
+            acima += max(0.0, temperatura - temp_max) * intervalo_h
+            abaixo += max(0.0, temp_min - temperatura) * intervalo_h
         anterior = leitura
-    return total
+    return acima, abaixo
 
 
 def classificar_risco(graus_hora):
@@ -94,6 +112,17 @@ def classificar_risco(graus_hora):
     if graus_hora < LIMITE_VERMELHO:
         return "LARANJA"
     return "VERMELHO"
+
+
+def nivel_mais_grave(nivel_a, nivel_b):
+    """O pior dos dois niveis. Calor e frio nao se compensam."""
+    if GRAVIDADE[nivel_a] >= GRAVIDADE[nivel_b]:
+        return nivel_a
+    return nivel_b
+
+
+def duracao_em_minutos(inicio, fim):
+    return round((fim - inicio).total_seconds() / 60, 1)
 
 
 def detectar_eventos_porta(leituras):
@@ -119,9 +148,47 @@ def detectar_eventos_porta(leituras):
         eventos.append(evento_atual)
 
     for evento in eventos:
-        segundos = (evento["fim"] - evento["inicio"]).total_seconds()
-        evento["duracao_min"] = round(segundos / 60, 1)
+        evento["duracao_min"] = duracao_em_minutos(evento["inicio"], evento["fim"])
     return eventos
+
+
+def detectar_trechos_fora_da_faixa(leituras, temp_min, temp_max):
+    """
+    Junta leituras seguidas do mesmo lado da faixa em um trecho. Cada trecho
+    guarda o lado e a temperatura mais distante da faixa (a maior, se acima;
+    a menor, se abaixo).
+    """
+    trechos = []
+    trecho_atual = None
+    for leitura in leituras:
+        temperatura = leitura["temperatura_c"]
+        lado = lado_da_faixa(temperatura, temp_min, temp_max)
+
+        # Mudou de lado (ou voltou para a faixa): fecha o trecho aberto.
+        if trecho_atual is not None and lado != trecho_atual["lado"]:
+            trechos.append(trecho_atual)
+            trecho_atual = None
+        if lado is None:
+            continue
+
+        if trecho_atual is None:
+            trecho_atual = {
+                "inicio": leitura["data_hora"],
+                "lado": lado,
+                "temp_extrema_c": temperatura,
+            }
+        elif lado == "acima":
+            trecho_atual["temp_extrema_c"] = max(trecho_atual["temp_extrema_c"], temperatura)
+        else:
+            trecho_atual["temp_extrema_c"] = min(trecho_atual["temp_extrema_c"], temperatura)
+        trecho_atual["fim"] = leitura["data_hora"]
+
+    if trecho_atual is not None:
+        trechos.append(trecho_atual)
+
+    for trecho in trechos:
+        trecho["duracao_min"] = duracao_em_minutos(trecho["inicio"], trecho["fim"])
+    return trechos
 
 
 def limpar_leituras(leituras):
@@ -150,20 +217,36 @@ def analise_sem_dados():
         "temp_min_c": None,
         "temp_max_c": None,
         "temp_media_c": None,
-        "graus_hora": 0.0,
+        "graus_hora_acima": 0.0,
+        "graus_hora_abaixo": 0.0,
+        "nivel_acima": "SEM_DADOS",
+        "nivel_abaixo": "SEM_DADOS",
         "nivel": "SEM_DADOS",
         "recomendacao": RECOMENDACOES["SEM_DADOS"],
+        "trechos_fora_faixa": [],
         "eventos_porta": [],
     }
 
 
-def contar_fora_da_faixa(temperaturas, faixa):
-    """Quantas temperaturas ficaram fora da faixa segura (so temperatura)."""
-    quantidade = 0
-    for temperatura in temperaturas:
+def resumo_das_temperaturas(leituras, faixa):
+    """Contagens e temperaturas medidas (menor, maior e media) da viagem."""
+    temperaturas = []
+    fora_faixa = 0
+    for leitura in leituras:
+        temperatura = leitura["temperatura_c"]
+        temperaturas.append(temperatura)
         if fora_da_faixa(temperatura, faixa["temp_min_c"], faixa["temp_max_c"]):
-            quantidade += 1
-    return quantidade
+            fora_faixa += 1
+
+    return {
+        "amostras": len(leituras),
+        "amostras_fora_faixa": fora_faixa,
+        "primeira_leitura": leituras[0]["data_hora"],
+        "ultima_leitura": leituras[-1]["data_hora"],
+        "temp_min_c": min(temperaturas),
+        "temp_max_c": max(temperaturas),
+        "temp_media_c": round(sum(temperaturas) / len(temperaturas), 2),
+    }
 
 
 def analisar_lote(leituras, faixa):
@@ -177,23 +260,20 @@ def analisar_lote(leituras, faixa):
     if not leituras:
         return analise_sem_dados()
 
-    temperaturas = []
-    for leitura in leituras:
-        temperaturas.append(leitura["temperatura_c"])
+    piso = faixa["temp_min_c"]
+    teto = faixa["temp_max_c"]
+    acima, abaixo = calcular_graus_hora(leituras, piso, teto)
+    nivel_acima = classificar_risco(acima)
+    nivel_abaixo = classificar_risco(abaixo)
+    nivel = nivel_mais_grave(nivel_acima, nivel_abaixo)
 
-    graus_hora = calcular_graus_hora(leituras, faixa["temp_max_c"])
-    nivel = classificar_risco(graus_hora)
-
-    return {
-        "amostras": len(leituras),
-        "amostras_fora_faixa": contar_fora_da_faixa(temperaturas, faixa),
-        "primeira_leitura": leituras[0]["data_hora"],
-        "ultima_leitura": leituras[-1]["data_hora"],
-        "temp_min_c": min(temperaturas),
-        "temp_max_c": max(temperaturas),
-        "temp_media_c": round(sum(temperaturas) / len(temperaturas), 2),
-        "graus_hora": round(graus_hora, 2),
-        "nivel": nivel,
-        "recomendacao": RECOMENDACOES[nivel],
-        "eventos_porta": detectar_eventos_porta(leituras),
-    }
+    analise = resumo_das_temperaturas(leituras, faixa)
+    analise["graus_hora_acima"] = round(acima, 2)
+    analise["graus_hora_abaixo"] = round(abaixo, 2)
+    analise["nivel_acima"] = nivel_acima
+    analise["nivel_abaixo"] = nivel_abaixo
+    analise["nivel"] = nivel
+    analise["recomendacao"] = RECOMENDACOES[nivel]
+    analise["trechos_fora_faixa"] = detectar_trechos_fora_da_faixa(leituras, piso, teto)
+    analise["eventos_porta"] = detectar_eventos_porta(leituras)
+    return analise
