@@ -6,6 +6,22 @@ from services.datas import formatar_utc, hora_recife
 from services.lotes import buscar_e_analisar, lote_em_transito
 
 
+def montar_alerta_termico(lote, analise, lado, nivel, mensagem):
+    """
+    Monta o dicionario de um alerta de tipo "risco_termico". O lado diz se e
+    calor ("acima") ou frio ("abaixo"); a mensagem vem de alerta_calor ou alerta_frio.
+    """
+    return {
+        "lote_id": lote.id,
+        "fruta": lote.fruta_id,
+        "tipo": "risco_termico",
+        "lado": lado,
+        "nivel": nivel,
+        "mensagem": mensagem,
+        "data_hora": analise["ultima_leitura"],
+    }
+
+
 def alerta_calor(lote, analise):
     """Alerta do lado quente: graus-hora acima do teto da faixa."""
     nivel = analise["nivel_acima"]
@@ -14,7 +30,7 @@ def alerta_calor(lote, analise):
         f"Lote {lote.id} ({lote.fruta_id}) acumulou {analise['graus_hora_acima']:.0f} °C·h "
         f"acima de {lote.temp_max_c:g} °C: {ACOES_CURTAS[nivel]}."
     )
-    return alerta_risco_termico(lote, analise, "acima", nivel, mensagem)
+    return montar_alerta_termico(lote, analise, "acima", nivel, mensagem)
 
 
 def alerta_frio(lote, analise, risco_no_frio):
@@ -30,19 +46,7 @@ def alerta_frio(lote, analise, risco_no_frio):
         f"Lote {lote.id} ({lote.fruta_id}) acumulou {analise['graus_hora_abaixo']:.0f} °C·h "
         f"abaixo de {lote.temp_min_c:g} °C: {acao}."
     )
-    return alerta_risco_termico(lote, analise, "abaixo", nivel, mensagem)
-
-
-def alerta_risco_termico(lote, analise, lado, nivel, mensagem):
-    return {
-        "lote_id": lote.id,
-        "fruta": lote.fruta_id,
-        "tipo": "risco_termico",
-        "lado": lado,
-        "nivel": nivel,
-        "mensagem": mensagem,
-        "data_hora": analise["ultima_leitura"],
-    }
+    return montar_alerta_termico(lote, analise, "abaixo", nivel, mensagem)
 
 
 def alerta_porta_aberta(lote, evento):
@@ -73,10 +77,9 @@ def gerar_alertas(sessao):
 
     alertas = []
     analise = buscar_e_analisar(sessao, lote)
-    # SEM_DADOS nao esta em GRAVIDADE; o .get devolve 0 e nao gera alerta.
-    if GRAVIDADE.get(analise["nivel_acima"], 0) > 0:
+    if GRAVIDADE[analise["nivel_acima"]] > 0:
         alertas.append(alerta_calor(lote, analise))
-    if GRAVIDADE.get(analise["nivel_abaixo"], 0) > 0:
+    if GRAVIDADE[analise["nivel_abaixo"]] > 0:
         fruta = sessao.get(Fruta, lote.fruta_id)
         alertas.append(alerta_frio(lote, analise, fruta.risco_no_frio))
     for evento in analise["eventos_porta"]:

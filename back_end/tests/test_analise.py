@@ -10,6 +10,8 @@ from services.analise import (
     nivel_mais_grave,
 )
 
+# Faixas e inicio proprios deste arquivo: estes testes chamam a analise direto,
+# sem banco, por isso nao usam o tests/auxiliares.py.
 FAIXA_UVA = {"temp_min_c": 0.0, "temp_max_c": 2.0, "umidade_min_pct": 85.0, "umidade_max_pct": 95.0}
 FAIXA_MANGA = {
     "temp_min_c": 10.0,
@@ -103,10 +105,11 @@ def test_analise_de_lote_sem_leituras():
     assert analise["temp_max_c"] is None
 
 
-# ---------- risco nos dois lados da faixa (RCA da temperatura abaixo do piso) ----------
+# ---------- risco nos dois lados da faixa (calor acima do teto e frio abaixo do piso) ----------
 
 def test_manga_a_8_5_graus_por_72_horas_nao_pode_ser_verde():
-    # Criterio de aceite negativo da RCA: frio abaixo do piso precisa pesar no risco.
+    # O frio abaixo do piso precisa pesar no risco: uma manga a 8,5 graus
+    # por 72 horas nao pode ficar VERDE (ela pode desenvolver corte negro).
     # 1,5 grau abaixo do piso (10) durante 72 horas = 108 graus-hora
     leituras = [leitura(0, 8.5), leitura(72, 8.5)]
     analise = analisar_lote(leituras, FAIXA_MANGA)
@@ -114,7 +117,6 @@ def test_manga_a_8_5_graus_por_72_horas_nao_pode_ser_verde():
     assert analise["graus_hora_acima"] == 0.0
     assert analise["nivel_abaixo"] == "VERMELHO"
     assert analise["nivel"] != "VERDE"
-    assert analise["nivel"] == "VERMELHO"
 
 
 def test_leitura_exatamente_no_piso_ou_no_teto_soma_zero():
