@@ -10,6 +10,7 @@ auxiliares.py; as que so servem a este arquivo ficam logo abaixo.
 import pytest
 
 from auxiliares import (
+    alertas_do_tipo,
     analise_do_lote,
     buscar_fruta,
     cadastrar_fruta,
@@ -23,6 +24,7 @@ from auxiliares import (
     gravar_leituras,
     leituras_do_lote,
     leituras_por_hora,
+    lote_da_lista,
     nova_leitura,
     sem_campo,
 )
@@ -33,7 +35,11 @@ FIM_DO_LOTE = "2026-10-28T09:00:00Z"
 MENSAGEM_NAO_ENCONTRADO = {"erro": "Código não encontrado."}
 
 # Manga: faixa de 10 a 13 °C. Uva: faixa de 0 a 2 °C.
-MANGA_CONGELANDO_72_HORAS = [8.5] * 73  # 72 intervalos de 1 h
+MANGA_ABAIXO_DO_PISO_72_HORAS = [8.5] * 73  # 72 intervalos de 1 h
+
+# Uma leitura por hora: 72 h de frio a 8,5 °C, volta a faixa (12 °C),
+# 9 h de calor a 15 °C (2 °C acima do teto = 18 °C·h) e volta a faixa de novo.
+MANGA_FRIO_E_DEPOIS_CALOR = [8.5] * 73 + [12.0] + [15.0] * 9 + [12.0]
 
 
 # ---------- funcoes auxiliares deste arquivo ----------
@@ -60,24 +66,10 @@ def criar_lote_encerrado(cliente, banco, temperaturas, fruta="manga"):
     return lote
 
 
-def lote_da_lista(cliente, lote):
-    """Procura o lote em GET /api/lotes e devolve o item dele."""
-    for item in cliente.get("/api/lotes").json():
-        if item["id"] == lote["id"]:
-            return item
-    raise AssertionError(f"lote {lote['id']} nao esta na lista")
-
-
 def visao_publica(cliente, lote):
     """Abre GET /api/publico/<codigo_publico do lote> e devolve a resposta."""
     codigo = detalhe_do_lote(cliente, lote)["codigo_publico"]
     return cliente.get(f"/api/publico/{codigo}")
-
-
-def alertas_do_tipo(cliente, tipo):
-    """Devolve so os alertas de GET /api/alertas com o 'tipo' pedido."""
-    alertas = cliente.get("/api/alertas").json()
-    return [alerta for alerta in alertas if alerta["tipo"] == tipo]
 
 
 def alerta_do_lado(cliente, lado):
@@ -92,7 +84,7 @@ def alerta_do_lado(cliente, lado):
 
 def test_manga_a_8_5_graus_por_72_horas_soma_108_graus_hora_abaixo(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    gravar_leituras(banco, leituras_nas_horas(MANGA_CONGELANDO_72_HORAS))
+    gravar_leituras(banco, leituras_nas_horas(MANGA_ABAIXO_DO_PISO_72_HORAS))
     analise = analise_do_lote(cliente, lote)
     # 1,5 °C abaixo do piso por 72 h = 108 °C·h
     assert analise["graus_hora_abaixo"] == 108
@@ -104,7 +96,7 @@ def test_manga_a_8_5_graus_por_72_horas_soma_108_graus_hora_abaixo(cliente, banc
 
 def test_lista_de_lotes_mostra_o_risco_de_frio_da_manga(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    gravar_leituras(banco, leituras_nas_horas(MANGA_CONGELANDO_72_HORAS))
+    gravar_leituras(banco, leituras_nas_horas(MANGA_ABAIXO_DO_PISO_72_HORAS))
     risco = lote_da_lista(cliente, lote)["risco"]
     assert risco["graus_hora_abaixo"] == 108
     assert risco["graus_hora_acima"] == 0
@@ -113,11 +105,13 @@ def test_lista_de_lotes_mostra_o_risco_de_frio_da_manga(cliente, banco):
 
 def test_graus_hora_unico_deixou_de_existir_no_risco_e_na_analise(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    gravar_leituras(banco, leituras_nas_horas(MANGA_CONGELANDO_72_HORAS))
+    gravar_leituras(banco, leituras_nas_horas(MANGA_ABAIXO_DO_PISO_72_HORAS))
     assert "graus_hora" not in lote_da_lista(cliente, lote)["risco"]
     assert "graus_hora" not in analise_do_lote(cliente, lote)
 
 
+# parametrize roda o mesmo teste uma vez para cada valor da lista; os nomes entre
+# aspas sao os parametros da funcao, na mesma ordem. Os 'ids' so dao nome a cada caso.
 @pytest.mark.parametrize("temperatura", [10.0, 13.0], ids=["no_piso", "no_teto"])
 def test_leitura_exatamente_no_piso_ou_no_teto_nao_soma_nada(cliente, banco, temperatura):
     lote = criar_lote_de_manga(cliente)
@@ -134,7 +128,7 @@ def test_leitura_exatamente_no_piso_ou_no_teto_nao_soma_nada(cliente, banco, tem
 def test_lote_com_frio_e_calor_soma_cada_lado_separado(cliente, banco):
     lote = criar_lote_de_manga(cliente)
     # 72 h a 8,5 °C (108 °C·h abaixo), volta para 12 °C, 9 h a 15 °C (2 × 9 = 18 °C·h acima)
-    temperaturas = [8.5] * 73 + [12.0] + [15.0] * 9 + [12.0]
+    temperaturas = MANGA_FRIO_E_DEPOIS_CALOR
     gravar_leituras(banco, leituras_nas_horas(temperaturas))
     analise = analise_do_lote(cliente, lote)
     assert analise["graus_hora_abaixo"] == 108
@@ -145,7 +139,7 @@ def test_lote_com_frio_e_calor_soma_cada_lado_separado(cliente, banco):
 
 def test_nivel_do_lote_e_o_pior_dos_dois_lados_quando_o_frio_e_o_pior(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    temperaturas = [8.5] * 73 + [12.0] + [15.0] * 9 + [12.0]
+    temperaturas = MANGA_FRIO_E_DEPOIS_CALOR
     gravar_leituras(banco, leituras_nas_horas(temperaturas))
     assert analise_do_lote(cliente, lote)["nivel"] == "VERMELHO"
     assert lote_da_lista(cliente, lote)["risco"]["nivel"] == "VERMELHO"
@@ -245,7 +239,7 @@ def test_trechos_estao_no_detalhe_e_nao_no_resumo_da_lista(cliente, banco):
 
 def test_alerta_de_frio_da_manga_usa_a_mensagem_do_contrato(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    gravar_leituras(banco, leituras_nas_horas(MANGA_CONGELANDO_72_HORAS))
+    gravar_leituras(banco, leituras_nas_horas(MANGA_ABAIXO_DO_PISO_72_HORAS))
     alerta = alerta_do_lado(cliente, "abaixo")
     numero = lote["id"]
     assert alerta["lote_id"] == numero
@@ -260,14 +254,14 @@ def test_alerta_de_frio_da_manga_usa_a_mensagem_do_contrato(cliente, banco):
 
 def test_lote_so_com_frio_nao_gera_alerta_de_calor(cliente, banco):
     criar_lote_de_manga(cliente)
-    gravar_leituras(banco, leituras_nas_horas(MANGA_CONGELANDO_72_HORAS))
+    gravar_leituras(banco, leituras_nas_horas(MANGA_ABAIXO_DO_PISO_72_HORAS))
     alertas = alertas_do_tipo(cliente, "risco_termico")
     assert [alerta["lado"] for alerta in alertas] == ["abaixo"]
 
 
 def test_lote_com_calor_e_frio_gera_dois_alertas_um_por_lado(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    temperaturas = [8.5] * 73 + [12.0] + [15.0] * 9 + [12.0]
+    temperaturas = MANGA_FRIO_E_DEPOIS_CALOR
     gravar_leituras(banco, leituras_nas_horas(temperaturas))
     alertas = alertas_do_tipo(cliente, "risco_termico")
     assert len(alertas) == 2
@@ -284,7 +278,7 @@ def test_lote_com_calor_e_frio_gera_dois_alertas_um_por_lado(cliente, banco):
 
 def test_alertas_vem_do_mais_grave_para_o_mais_leve_mesmo_com_dois_lados(cliente, banco):
     criar_lote_de_manga(cliente)
-    temperaturas = [8.5] * 73 + [12.0] + [15.0] * 9 + [12.0]
+    temperaturas = MANGA_FRIO_E_DEPOIS_CALOR
     gravar_leituras(banco, leituras_nas_horas(temperaturas))
     niveis = []
     for alerta in cliente.get("/api/alertas").json():
@@ -411,7 +405,7 @@ def test_visao_publica_mostra_o_nome_da_fruta_e_nao_o_id(cliente):
 
 
 def test_visao_publica_nunca_traz_temperatura_nivel_leituras_nem_token(cliente, banco):
-    lote = criar_lote_encerrado(cliente, banco, MANGA_CONGELANDO_72_HORAS)
+    lote = criar_lote_encerrado(cliente, banco, MANGA_ABAIXO_DO_PISO_72_HORAS)
     token = detalhe_do_lote(cliente, lote)["token_laudo"]
     resposta = visao_publica(cliente, lote)
     corpo = resposta.json()
@@ -498,7 +492,7 @@ def test_selo_e_falso_para_lote_encerrado_com_um_lado_amarelo_ou_pior(
 # ---------- GET /api/laudos/{token} ----------
 
 def test_laudo_traz_a_analise_com_os_dois_lados_niveis_e_trechos(cliente, banco):
-    lote = criar_lote_encerrado(cliente, banco, MANGA_CONGELANDO_72_HORAS)
+    lote = criar_lote_encerrado(cliente, banco, MANGA_ABAIXO_DO_PISO_72_HORAS)
     token = detalhe_do_lote(cliente, lote)["token_laudo"]
     resposta = cliente.get(f"/api/laudos/{token}")
     assert resposta.status_code == 200

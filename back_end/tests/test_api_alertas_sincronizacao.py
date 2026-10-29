@@ -9,6 +9,7 @@ As funcoes auxiliares (criar_lote, gravar_leituras, em...) ficam em auxiliares.p
 """
 
 from auxiliares import (
+    alertas_do_tipo,
     analise_do_lote,
     conferir_data_utc,
     criar_lote,
@@ -57,12 +58,6 @@ def thingspeak_fora_do_ar(monkeypatch):
         raise ErroThingSpeak("Falha ao consultar o ThingSpeak: fora do ar")
 
     monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
-
-
-def alertas_do_tipo(cliente, tipo):
-    """Devolve so os alertas de GET /api/alertas com o 'tipo' pedido."""
-    alertas = cliente.get("/api/alertas").json()
-    return [alerta for alerta in alertas if alerta["tipo"] == tipo]
 
 
 # ---------- alertas: quando existem ----------

@@ -183,3 +183,17 @@ def conferir_data_utc(texto):
     """Confere que a data termina em Z e e ISO 8601 sem fracao de segundo."""
     assert texto.endswith("Z"), texto
     ler_data(texto)
+
+
+def alertas_do_tipo(cliente, tipo):
+    """Devolve so os alertas de GET /api/alertas com o 'tipo' pedido."""
+    alertas = cliente.get("/api/alertas").json()
+    return [alerta for alerta in alertas if alerta["tipo"] == tipo]
+
+
+def lote_da_lista(cliente, lote):
+    """Procura o lote em GET /api/lotes e devolve o item dele."""
+    for item in cliente.get("/api/lotes").json():
+        if item["id"] == lote["id"]:
+            return item
+    raise AssertionError(f"lote {lote['id']} nao esta na lista")
