@@ -173,7 +173,7 @@ def test_criar_lote_devolve_201_em_transito_com_faixa_da_fruta(cliente):
     assert lote["status"] == "em_transito"
     assert lote["faixa_segura"] == faixa_da_uva()
     assert lote["risco"]["nivel"] == "SEM_DADOS"
-    assert lote["risco"]["graus_hora"] == 0
+    assert lote["risco"]["graus_hora_acima"] == 0
 
 
 def test_criar_lote_sem_inicio_usa_o_horario_atual(cliente):
@@ -269,7 +269,7 @@ def test_editar_fruta_depois_nao_muda_o_risco_do_lote_ja_criado(cliente, banco):
     )
 
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora"] == 30.0
+    assert analise["graus_hora_acima"] == 30.0
     assert analise["amostras_fora_faixa"] == 11
 
 
@@ -309,7 +309,7 @@ def test_listar_lotes_traz_resumo_de_risco(cliente, banco):
     gravar_leituras(banco, leituras_por_hora(5.0))
 
     lote = cliente.get("/api/lotes").json()[0]
-    assert lote["risco"]["graus_hora"] == 30.0
+    assert lote["risco"]["graus_hora_acima"] == 30.0
     assert lote["risco"]["nivel"] == "LARANJA"
 
 
@@ -346,7 +346,7 @@ def test_detalhe_do_lote_calcula_graus_hora_e_nivel(cliente, banco):
 
     assert detalhe["id"] == lote["id"]
     assert analise["amostras"] == 11
-    assert analise["graus_hora"] == 30.0
+    assert analise["graus_hora_acima"] == 30.0
     assert analise["nivel"] == "LARANJA"
     assert analise["recomendacao"] == (
         "Abuso relevante. Inspeção física obrigatória antes do embarque."
@@ -363,7 +363,7 @@ def test_detalhe_do_lote_nivel_verde_quando_tudo_dentro_da_faixa(cliente, banco)
     gravar_leituras(banco, leituras_por_hora(1.0, horas=4))
 
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora"] == 0
+    assert analise["graus_hora_acima"] == 0
     assert analise["nivel"] == "VERDE"
     assert analise["amostras_fora_faixa"] == 0
 
@@ -374,7 +374,7 @@ def test_detalhe_do_lote_nivel_vermelho_com_50_graus_hora(cliente, banco):
     gravar_leituras(banco, leituras_por_hora(7.0))
 
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora"] == 50.0
+    assert analise["graus_hora_acima"] == 50.0
     assert analise["nivel"] == "VERMELHO"
 
 
@@ -459,7 +459,7 @@ def test_leitura_antes_do_inicio_do_lote_nao_entra(cliente, banco):
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
     assert analise["primeira_leitura"] == "2026-10-24T09:00:00Z"
-    assert analise["graus_hora"] == 0
+    assert analise["graus_hora_acima"] == 0
 
 
 def test_leituras_depois_do_fim_do_lote_nao_entram(cliente, banco):
@@ -475,7 +475,7 @@ def test_leituras_depois_do_fim_do_lote_nao_entram(cliente, banco):
     analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
-    assert analise["graus_hora"] == 0
+    assert analise["graus_hora_acima"] == 0
     assert analise["ultima_leitura"] == "2026-10-24T12:00:00Z"
 
 
@@ -499,7 +499,7 @@ def test_leitura_com_temperatura_impossivel_nao_entra_na_analise(cliente, banco)
     analise = analise_do_lote(cliente, lote)
     assert analise["amostras"] == 2
     assert analise["temp_max_c"] == 1.0
-    assert analise["graus_hora"] == 0
+    assert analise["graus_hora_acima"] == 0
 
 
 # ---------- encerrar ----------

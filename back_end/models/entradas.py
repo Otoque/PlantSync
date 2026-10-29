@@ -21,6 +21,7 @@ class FrutaDados(FaixaSegura):
     """Campos de uma fruta que podem ser editados (usado no PUT)."""
     nome: str = Field(min_length=1)
     fonte: str = Field(min_length=1)
+    risco_no_frio: str | None = None
 
 
 class FrutaNova(FrutaDados):
@@ -31,6 +32,7 @@ class FrutaNova(FrutaDados):
 
 class LoteNovo(BaseModel):
     fruta: str
+    produtor: str = Field(min_length=1)
     origem: str = Field(min_length=1)
     porto_destino: str = Field(min_length=1)
     inicio: datetime | None = None
