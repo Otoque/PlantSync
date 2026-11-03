@@ -12,6 +12,7 @@ from auxiliares import (
     em_utc,
     encerrar_lote,
     leitura_do_thingspeak,
+    leituras_do_thingspeak,
     sem_campo,
     thingspeak_devolve,
 )
@@ -71,10 +72,7 @@ def test_leituras_que_chegam_depois_do_encerramento_entram_no_lote(cliente, monk
 
     # Elas chegam depois, em lote, com o horario da medicao (dentro do lote).
     # 3 graus acima do teto (2) por 10 h = 30 graus-hora
-    leituras = []
-    for hora in range(0, 11):
-        leituras.append(leitura_do_thingspeak(hora + 1, em_utc(hora), 5.0))
-    thingspeak_devolve(monkeypatch, leituras)
+    thingspeak_devolve(monkeypatch, leituras_do_thingspeak(range(0, 11), 5.0))
     cliente.post("/api/sincronizar")
 
     analise = analise_do_lote(cliente, lote)
@@ -101,17 +99,11 @@ def test_leituras_fora_de_ordem_dao_o_mesmo_resultado(cliente, monkeypatch):
     lote = criar_lote(cliente)
 
     # Primeiro chegam as ultimas horas da viagem...
-    segunda_metade = []
-    for hora in range(6, 11):
-        segunda_metade.append(leitura_do_thingspeak(hora + 1, em_utc(hora), 5.0))
-    thingspeak_devolve(monkeypatch, segunda_metade)
+    thingspeak_devolve(monkeypatch, leituras_do_thingspeak(range(6, 11), 5.0))
     cliente.post("/api/sincronizar")
 
     # ...e so depois as primeiras, que estavam guardadas no sensor.
-    primeira_metade = []
-    for hora in range(0, 6):
-        primeira_metade.append(leitura_do_thingspeak(hora + 1, em_utc(hora), 5.0))
-    thingspeak_devolve(monkeypatch, primeira_metade)
+    thingspeak_devolve(monkeypatch, leituras_do_thingspeak(range(0, 6), 5.0))
     cliente.post("/api/sincronizar")
 
     # Mesma conta de quem recebeu tudo em ordem: 3 graus acima por 10 h = 30
