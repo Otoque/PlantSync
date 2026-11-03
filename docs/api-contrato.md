@@ -1,7 +1,23 @@
 # Contrato da API do PlantSync
 
-Versão 0.4 (rascunho, 29/10/2026). Este documento descreve o que o backend entrega ao
+Versão 0.5 (rascunho, 03/11/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
+
+## Mudanças da v0.5 (em relação à v0.4)
+
+1. **Destino do lote: porto ou mercado interno.** O PlantSync acompanha o transporte
+   rodoviário dentro do Brasil: o caminhão leva a carga do packing house até um porto
+   (exportação) ou até o mercado interno (Ceasa, atacado). O campo `porto_destino`
+   deu lugar a `destino` (texto livre, ex.: "Porto de Suape", "Ceasa Recife") e
+   `tipo_destino` (`porto` ou `mercado_interno`), os dois obrigatórios no cadastro.
+2. **Faixa da uva decidida:** 0 a 2 °C (Embrapa). Ver `GET /api/frutas`.
+3. **Login (RF07) fora do escopo.** O acesso ao laudo completo continua pelo link com
+   `token_laudo`.
+4. **Leituras atrasadas** passam a ser descritas no contrato (seção Conceitos). Nada
+   muda no formato.
+
+Quem já tem um `back_end/plantsync.db` da v0.4 precisa apagá-lo: a tabela de lotes
+mudou e o banco é recriado na próxima execução.
 
 ## Mudanças da v0.4 (em relação à v0.3)
 
@@ -50,13 +66,20 @@ banco é recriado na próxima execução.
 
 ## Conceitos
 
-- **Lote**: uma carga de fruta que sai de uma origem (packing house) para um porto. Tem
-  início e, quando chega, fim.
+- **Lote**: uma carga de fruta levada de caminhão de uma origem (packing house) até um
+  destino: um porto, para exportação, ou o mercado interno (Ceasa, atacado). Tem início
+  e, quando chega ao destino, fim.
 - **Leitura**: uma amostra enviada pelo sensor ao ThingSpeak (a cada 20 s). O backend
   copia as leituras para o banco local.
 - **Associação leitura → lote**: uma leitura pertence ao lote quando o horário dela está
   entre o `inicio` e o `fim` do lote. Lote sem `fim` (ainda em trânsito) recebe tudo
   que chegar depois do `inicio`.
+- **Leituras atrasadas**: o horário que vale é o da medição (o `created_at` gravado no
+  ThingSpeak), não o da chegada ao backend. Se o sensor ficar sem sinal e mandar as
+  leituras depois, em lote, com o horário original, elas entram no lote certo, mesmo
+  que cheguem fora de ordem ou depois de o lote ser encerrado. Ainda não está decidido
+  onde fica o sensor (dentro da carga, gravando para enviar depois, ou com a placa do
+  lado de fora); o backend funciona nos dois casos.
 - **Faixa segura**: limites de temperatura e umidade de uma fruta, com a fonte. Fica
   cadastrada no banco e pode ser editada pela API; não há valor fixo no código.
 - **Cópia da faixa no lote**: ao criar um lote, a faixa da fruta é copiada para ele.
@@ -97,7 +120,7 @@ banco é recriado na próxima execução.
 
   **Um QR, duas visões.** O QR leva à página do lote com o `codigo_publico`; quem também
   tem o `token_laudo` (link enviado em particular) vê o laudo completo. Usamos um token
-  secreto em vez de login porque o login com perfis (RF07) ainda não foi decidido: o
+  secreto em vez de login porque o login com perfis (RF07) ficou fora do escopo: o
   link funciona como a chave de um documento compartilhado. Por isso o token nunca vai no
   QR, e só o painel interno (`GET /api/lotes/{id}`) o mostra.
 
@@ -112,7 +135,7 @@ banco é recriado na próxima execução.
 | GET | `/api/lotes` | Listar os lotes com o resumo de risco. |
 | POST | `/api/lotes` | Cadastrar um lote. |
 | GET | `/api/lotes/{id}` | Ver um lote com a análise completa. |
-| POST | `/api/lotes/{id}/encerrar` | Marcar a chegada do lote ao porto. |
+| POST | `/api/lotes/{id}/encerrar` | Marcar a chegada do lote ao destino. |
 | GET | `/api/lotes/{id}/leituras` | Histórico de leituras do lote (para os gráficos). |
 | GET | `/api/alertas` | Alertas ativos para o painel. |
 | POST | `/api/sincronizar` | Buscar leituras novas no ThingSpeak e gravar no banco. |
@@ -158,9 +181,9 @@ Valores iniciais que o backend grava na primeira execução (todos editáveis de
 ]
 ```
 
-> **Em decisão:** o teto inicial da uva. A Embrapa recomenda 0 °C (uva sem semente) e
-> 2 °C (com semente); o slide 7 usa 4 °C, valor sem fonte encontrada. O contrato não
-> muda com a escolha, só o valor inicial. Ver [Referências](#referências).
+> **Faixa da uva (decisão de 03/11/2026):** 0 a 2 °C. A Embrapa recomenda 0 °C para
+> uva sem semente e 2 °C para uva com semente (LIMA, 2016). O valor de 4 °C usado no
+> slide 7 não tinha fonte e foi abandonado. Ver [Referências](#referências).
 
 ---
 
@@ -219,7 +242,8 @@ Lista do mais recente para o mais antigo. O campo `risco` é um resumo; o detalh
     "fruta": "uva",
     "produtor": "Sítio Boa Vista",
     "origem": "Packing house Petrolina",
-    "porto_destino": "Suape",
+    "destino": "Porto de Suape",
+    "tipo_destino": "porto",
     "inicio": "2026-10-24T09:00:00Z",
     "fim": null,
     "status": "em_transito",
@@ -254,13 +278,17 @@ Corpo:
   "fruta": "uva",
   "produtor": "Sítio Boa Vista",
   "origem": "Packing house Petrolina",
-  "porto_destino": "Suape",
+  "destino": "Porto de Suape",
+  "tipo_destino": "porto",
   "inicio": "2026-10-24T09:00:00Z"
 }
 ```
 
 - `fruta`: obrigatório, um dos `id` de `GET /api/frutas`.
-- `produtor`, `origem` e `porto_destino`: obrigatórios, texto livre.
+- `produtor`, `origem` e `destino`: obrigatórios, texto livre.
+- `tipo_destino`: obrigatório, `porto` (exportação) ou `mercado_interno` (Ceasa,
+  atacado). Outro valor devolve `400`:
+  `{ "erro": "tipo_destino precisa ser 'porto' ou 'mercado_interno'." }`
 - `inicio`: opcional. Se não vier, vale o horário atual.
 - `faixa_segura`: opcional, para um lote com faixa própria (ex.: cultivar mais
   sensível). Mesmos quatro campos de `GET /api/frutas`, com as mesmas regras de
@@ -295,7 +323,8 @@ O lote com a análise completa da viagem até agora.
   "fruta": "uva",
   "produtor": "Sítio Boa Vista",
   "origem": "Packing house Petrolina",
-  "porto_destino": "Suape",
+  "destino": "Porto de Suape",
+  "tipo_destino": "porto",
   "inicio": "2026-10-24T09:00:00Z",
   "fim": null,
   "status": "em_transito",
@@ -361,7 +390,7 @@ Resposta `404` se o lote não existir.
 
 ### POST `/api/lotes/{id}/encerrar`
 
-Marca a chegada. Corpo opcional:
+Marca a chegada ao destino. Corpo opcional:
 
 ```json
 { "fim": "2026-10-25T18:00:00Z" }
@@ -491,7 +520,7 @@ e o selo. **Nunca** traz curva, temperaturas, graus-hora ou nível de risco.
 
 `selo_faixa_segura` é `true` só quando as três condições valem juntas:
 
-1. o lote já foi encerrado (chegou ao porto);
+1. o lote já foi encerrado (chegou ao destino);
 2. o lote tem leituras;
 3. `nivel_acima` e `nivel_abaixo` são `VERDE`.
 
@@ -549,6 +578,10 @@ Mapeamento do canal 3493443, conforme o `README.md`:
 | `field2` | Umidade relativa (%) | Faixa segura. |
 | `field5` | Luminosidade (lux) | Porta aberta. |
 
+Para leituras guardadas e enviadas depois, o dispositivo deve mandar o horário da medição
+em cada entrada (campo `created_at` do envio em lote do ThingSpeak, `bulk_update.json`).
+Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo errado.
+
 ## Limitações conhecidas
 
 - **Um sensor, um lote por vez.** As leituras vão para o lote pelo horário, e há um só
@@ -556,15 +589,18 @@ Mapeamento do canal 3493443, conforme o `README.md`:
   (ver `POST /api/lotes`). Para acompanhar cargas simultâneas, cada lote precisaria do
   seu próprio sensor e canal, e o lote passaria a guardar o número do canal.
 
-- **Token sem login.** Enquanto não houver login (RF07), qualquer um com acesso ao painel
-  interno vê o `token_laudo` em `GET /api/lotes/{id}`. Com o login, só os perfis
-  autorizados passariam a vê-lo. Não há rota para trocar um token vazado.
+- **Token sem login.** Como o login (RF07) ficou fora do escopo, qualquer um com acesso
+  ao painel interno vê o `token_laudo` em `GET /api/lotes/{id}`. Não há rota para trocar
+  um token vazado.
 - **Banco sem migração.** Mudanças nas tabelas exigem apagar o `plantsync.db` local; é
   aceitável num protótipo, mas um sistema em produção precisaria de migrações.
 
 ## Fora deste contrato (por enquanto)
 
-- Login e perfis (RF07): aguardando decisão de escopo.
+- Login e perfis (RF07): fora do escopo (decisão de 03/11/2026).
+- Onde fica o sensor (dentro da carga ou placa do lado de fora) e envio ao vivo por
+  MQTT: em aberto. Não muda este contrato enquanto as leituras chegarem ao ThingSpeak
+  com o horário da medição.
 
 ## Referências
 
