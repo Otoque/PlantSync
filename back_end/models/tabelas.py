@@ -37,7 +37,10 @@ class Lote(Base):
     fruta_id: Mapped[str] = mapped_column(ForeignKey("frutas.id"))
     produtor: Mapped[str]
     origem: Mapped[str]
-    porto_destino: Mapped[str]
+    # Para onde o caminhao leva a carga: um porto (exportacao) ou o mercado
+    # interno (Ceasa, atacado). Ex.: destino "Ceasa Recife", tipo "mercado_interno".
+    destino: Mapped[str]
+    tipo_destino: Mapped[str]
     inicio: Mapped[datetime]
     fim: Mapped[datetime | None]
 

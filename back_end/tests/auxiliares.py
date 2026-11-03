@@ -9,6 +9,7 @@ coloca a pasta tests/ no caminho de importacao.
 from datetime import datetime, timedelta, timezone
 
 from models.tabelas import Leitura
+from services import thingspeak
 
 INICIO = datetime(2026, 10, 24, 9, 0, 0)  # 24/10/2026 09:00 UTC
 
@@ -16,7 +17,8 @@ LOTE_UVA = {
     "fruta": "uva",
     "produtor": "Sítio Boa Vista",
     "origem": "Packing house Petrolina",
-    "porto_destino": "Suape",
+    "destino": "Porto de Suape",
+    "tipo_destino": "porto",
     "inicio": "2026-10-24T09:00:00Z",
 }
 
@@ -197,3 +199,27 @@ def lote_da_lista(cliente, lote):
         if item["id"] == lote["id"]:
             return item
     raise AssertionError(f"lote {lote['id']} nao esta na lista")
+
+
+# ---------- ThingSpeak falso (sem internet) ----------
+
+def leitura_do_thingspeak(entry_id, data_hora, temperatura, umidade=90.0, lux=None):
+    """Leitura no formato que services.thingspeak.converter_feed devolve."""
+    return {
+        "entry_id": entry_id,
+        "data_hora": data_hora,
+        "temperatura_c": temperatura,
+        "umidade_pct": umidade,
+        "luminosidade_lux": lux,
+    }
+
+
+def thingspeak_devolve(monkeypatch, leituras):
+    """Faz a busca no ThingSpeak devolver 'leituras', sem internet."""
+
+    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
+    # que a funcao verdadeira receberia (*args, **kwargs) e ignora todos.
+    def buscar_falso(*args, **kwargs):
+        return list(leituras)
+
+    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)

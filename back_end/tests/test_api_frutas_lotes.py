@@ -167,7 +167,8 @@ def test_criar_lote_devolve_201_em_transito_com_faixa_da_fruta(cliente):
 
     assert lote["fruta"] == "uva"
     assert lote["origem"] == "Packing house Petrolina"
-    assert lote["porto_destino"] == "Suape"
+    assert lote["destino"] == "Porto de Suape"
+    assert lote["tipo_destino"] == "porto"
     assert lote["inicio"] == "2026-10-24T09:00:00Z"
     assert lote["fim"] is None
     assert lote["status"] == "em_transito"
@@ -199,8 +200,8 @@ def test_criar_lote_sem_origem_devolve_400(cliente):
     assert "erro" in resposta.json()
 
 
-def test_criar_lote_sem_porto_destino_devolve_400(cliente):
-    resposta = cliente.post("/api/lotes", json=sem_campo(LOTE_UVA, "porto_destino"))
+def test_criar_lote_sem_destino_devolve_400(cliente):
+    resposta = cliente.post("/api/lotes", json=sem_campo(LOTE_UVA, "destino"))
     assert resposta.status_code == 400
 
 

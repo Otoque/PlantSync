@@ -152,8 +152,15 @@ Rotas, exemplos de JSON e regras estão em [`docs/api-contrato.md`](docs/api-con
 | Uva de mesa | 0 a 2 °C | 85 a 95% | Embrapa Semiárido, *Cultivo da videira* (Lima, 2016) |
 | Manga | 10 a 13 °C | 85 a 90% | USDA, *Agriculture Handbook 66* (Paull; Chen, 2016); Embrapa Semiárido, *Cultivo da mangueira* (Assis, 2015) |
 
+A faixa da uva segue a Embrapa: 0 °C para uva sem semente e 2 °C para uva com semente
+(LIMA, 2016).
+
 Referências completas no fim do contrato da API. Os limiares de risco em graus-hora
 (5, 20 e 50 °C·h) foram definidos pela equipe e ainda serão validados com um produtor.
+
+**Destino do lote.** O PlantSync acompanha o transporte rodoviário no Brasil: o caminhão
+leva a carga do packing house até um porto (`tipo_destino` = `porto`) ou até o mercado
+interno, como a Ceasa (`mercado_interno`).
 
 **Risco nos dois lados da faixa.** A API soma os graus-hora de calor (acima do teto) e
 de frio (abaixo do piso) separados, e o nível do lote é o pior dos dois. Na manga, o
