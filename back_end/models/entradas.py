@@ -34,7 +34,9 @@ class LoteNovo(BaseModel):
     fruta: str
     produtor: str = Field(min_length=1)
     origem: str = Field(min_length=1)
-    porto_destino: str = Field(min_length=1)
+    destino: str = Field(min_length=1)
+    # "porto" ou "mercado_interno"; conferido em services/lotes.py.
+    tipo_destino: str
     inicio: datetime | None = None
     faixa_segura: FaixaSegura | None = None
 

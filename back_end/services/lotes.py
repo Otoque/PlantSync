@@ -79,12 +79,22 @@ def garantir_que_nao_ha_lote_em_transito(sessao):
         )
 
 
+# Tipos de destino aceitos no cadastro do lote.
+TIPOS_DE_DESTINO = ["porto", "mercado_interno"]
+
+
+def validar_tipo_destino(tipo_destino):
+    if tipo_destino not in TIPOS_DE_DESTINO:
+        raise ErroDeRegra("tipo_destino precisa ser 'porto' ou 'mercado_interno'.")
+
+
 def criar_lote(sessao, dados):
     """
     Cadastra um lote. O lote guarda uma copia da faixa segura, para que
     editar a fruta depois nao mude a analise dele.
     """
     fruta = fruta_escolhida(sessao, dados.fruta)
+    validar_tipo_destino(dados.tipo_destino)
     garantir_que_nao_ha_lote_em_transito(sessao)
 
     faixa = escolher_faixa(fruta, dados.faixa_segura)
@@ -92,7 +102,8 @@ def criar_lote(sessao, dados):
         fruta_id=fruta.id,
         produtor=dados.produtor,
         origem=dados.origem,
-        porto_destino=dados.porto_destino,
+        destino=dados.destino,
+        tipo_destino=dados.tipo_destino,
         inicio=inicio_do_lote(dados),
         fim=None,
         codigo_publico=gerar_codigo_publico(),
@@ -180,7 +191,8 @@ def lote_basico_json(lote):
         "fruta": lote.fruta_id,
         "produtor": lote.produtor,
         "origem": lote.origem,
-        "porto_destino": lote.porto_destino,
+        "destino": lote.destino,
+        "tipo_destino": lote.tipo_destino,
         "inicio": formatar_utc(lote.inicio),
         "fim": formatar_utc(lote.fim),
         "status": status,

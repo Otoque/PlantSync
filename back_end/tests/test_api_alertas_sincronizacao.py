@@ -17,37 +17,17 @@ from auxiliares import (
     em_utc,
     encerrar_lote,
     gravar_leituras,
+    leitura_do_thingspeak,
     leituras_do_lote,
     leituras_por_hora,
     nova_leitura,
+    thingspeak_devolve,
 )
 from services import thingspeak
 from services.thingspeak import ErroThingSpeak
 
 
 # ---------- funcoes auxiliares deste arquivo ----------
-
-def leitura_do_thingspeak(entry_id, data_hora, temperatura, umidade=90.0, lux=None):
-    """Leitura no formato que services.thingspeak.converter_feed devolve."""
-    return {
-        "entry_id": entry_id,
-        "data_hora": data_hora,
-        "temperatura_c": temperatura,
-        "umidade_pct": umidade,
-        "luminosidade_lux": lux,
-    }
-
-
-def thingspeak_devolve(monkeypatch, leituras):
-    """Faz a busca no ThingSpeak devolver 'leituras', sem internet."""
-
-    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
-    # que a funcao verdadeira receberia (*args, **kwargs) e ignora todos.
-    def buscar_falso(*args, **kwargs):
-        return list(leituras)
-
-    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
-
 
 def thingspeak_fora_do_ar(monkeypatch):
     """Faz a busca no ThingSpeak falhar, como se o servico estivesse fora do ar."""

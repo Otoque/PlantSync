@@ -5,7 +5,7 @@ Laudo do lote por QR Code: uma visao publica e uma visao completa.
   So mostra fruta, produtor, origem e o selo. Nunca mostra temperaturas.
 - Laudo completo (produtor e importador): aberto pelo token_laudo, um
   segredo enviado em particular. Funciona como a chave de um documento
-  compartilhado, ja que o login com perfis (RF07) ainda nao foi decidido.
+  compartilhado, ja que o login com perfis (RF07) ficou fora do escopo.
 """
 
 from models.tabelas import Fruta, Lote
