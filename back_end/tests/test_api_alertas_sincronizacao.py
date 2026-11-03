@@ -22,22 +22,12 @@ from auxiliares import (
     leituras_por_hora,
     nova_leitura,
     thingspeak_devolve,
+    thingspeak_fora_do_ar,
 )
-from services import thingspeak
-from services.thingspeak import ErroThingSpeak
 
 
 # ---------- funcoes auxiliares deste arquivo ----------
 
-def thingspeak_fora_do_ar(monkeypatch):
-    """Faz a busca no ThingSpeak falhar, como se o servico estivesse fora do ar."""
-
-    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
-    # que a funcao verdadeira receberia (*args, **kwargs) e sempre da erro.
-    def buscar_falso(*args, **kwargs):
-        raise ErroThingSpeak("Falha ao consultar o ThingSpeak: fora do ar")
-
-    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
 
 
 # ---------- alertas: quando existem ----------

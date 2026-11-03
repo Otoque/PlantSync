@@ -8,6 +8,10 @@ from services.datas import agora_utc, formatar_utc, para_utc
 from services.erros import ErroDeRegra, ErroNaoEncontrado
 from services.frutas import validar_faixa
 
+# Tipos de destino aceitos no cadastro do lote.
+# Se mudar esta lista, mude tambem a mensagem de validar_tipo_destino.
+TIPOS_DE_DESTINO = ["porto", "mercado_interno"]
+
 
 def buscar_lote(sessao, lote_id):
     lote = sessao.get(Lote, lote_id)
@@ -79,11 +83,8 @@ def garantir_que_nao_ha_lote_em_transito(sessao):
         )
 
 
-# Tipos de destino aceitos no cadastro do lote.
-TIPOS_DE_DESTINO = ["porto", "mercado_interno"]
-
-
 def validar_tipo_destino(tipo_destino):
+    """Levanta ErroDeRegra se o tipo nao for um dos TIPOS_DE_DESTINO."""
     if tipo_destino not in TIPOS_DE_DESTINO:
         raise ErroDeRegra("tipo_destino precisa ser 'porto' ou 'mercado_interno'.")
 

@@ -1,6 +1,6 @@
 """
 Constantes e funcoes auxiliares usadas pelos testes da API
-(test_api_frutas_lotes.py e test_api_alertas_sincronizacao.py).
+(os arquivos test_api_*.py).
 
 Os testes importam com "from auxiliares import ..." porque o pytest
 coloca a pasta tests/ no caminho de importacao.
@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from models.tabelas import Leitura
 from services import thingspeak
+from services.erros import ErroThingSpeak
 
 INICIO = datetime(2026, 10, 24, 9, 0, 0)  # 24/10/2026 09:00 UTC
 
@@ -221,5 +222,27 @@ def thingspeak_devolve(monkeypatch, leituras):
     # que a funcao verdadeira receberia (*args, **kwargs) e ignora todos.
     def buscar_falso(*args, **kwargs):
         return list(leituras)
+
+    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
+
+
+def leituras_do_thingspeak(horas, temperatura):
+    """
+    Uma leitura do ThingSpeak por hora da lista, todas com a mesma temperatura.
+    O entry_id e a hora + 1, entao a mesma hora sempre tem o mesmo entry_id.
+    """
+    leituras = []
+    for hora in horas:
+        leituras.append(leitura_do_thingspeak(hora + 1, em_utc(hora), temperatura))
+    return leituras
+
+
+def thingspeak_fora_do_ar(monkeypatch):
+    """Faz a busca no ThingSpeak falhar, como se o servico estivesse fora do ar."""
+
+    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
+    # que a funcao verdadeira receberia (*args, **kwargs) e sempre da erro.
+    def buscar_falso(*args, **kwargs):
+        raise ErroThingSpeak("Falha ao consultar o ThingSpeak: fora do ar")
 
     monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
