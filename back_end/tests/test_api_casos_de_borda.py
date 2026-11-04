@@ -329,6 +329,55 @@ def test_leitura_atrasada_mais_antiga_que_a_ultima_gravada_nao_se_perde(cliente,
     assert len(leituras_do_lote(cliente, lote)) == 2
 
 
+# ---------- leitura com horario no futuro (relogio do sensor errado) ----------
+
+def test_leitura_no_futuro_e_descartada_e_contada(cliente, monkeypatch):
+    futuro = datetime(2029, 1, 1, 12, 0, 0)
+    canal_falso(monkeypatch, [entrada_do_canal(1, em(0)), entrada_do_canal(2, futuro)])
+    resposta = cliente.post("/api/sincronizar").json()
+    assert resposta["recebidas"] == 2
+    assert resposta["novas"] == 1
+    assert resposta["descartadas"] == 1
+
+
+def test_leitura_no_futuro_nao_impede_de_trazer_as_leituras_reais(cliente, monkeypatch):
+    futuro = datetime(2029, 1, 1, 12, 0, 0)
+    entradas = [entrada_do_canal(1, em(0)), entrada_do_canal(2, futuro)]
+    canal_falso(monkeypatch, entradas)
+    cliente.post("/api/sincronizar")
+
+    # A proxima leitura real ainda precisa chegar: a busca nao pode pular para 2029.
+    entradas.insert(1, entrada_do_canal(3, em(1)))
+    canal_falso(monkeypatch, entradas)
+    assert cliente.post("/api/sincronizar").json()["novas"] == 1
+
+
+def test_leitura_no_futuro_ja_gravada_nao_atrapalha_o_comeco_da_busca(cliente, banco, monkeypatch):
+    # Banco de antes da correcao: a leitura de 2029 ja esta gravada.
+    futura = nova_leitura(datetime(2029, 1, 1, 12, 0, 0), 1.0)
+    gravar_leituras(banco, [nova_leitura(em(0), 1.0), futura])
+
+    chamadas = canal_falso(monkeypatch, [])
+    cliente.post("/api/sincronizar")
+    # Ultima leitura real em 24/10 09:00, menos 7 dias de margem.
+    assert chamadas[0]["start"] == "2026-10-17 09:00:00"
+
+
+def test_relogio_do_sensor_um_pouco_adiantado_e_aceito(cliente, monkeypatch):
+    # Pequena diferenca entre relogios: 1 min a frente fica dentro da tolerancia.
+    adiantada = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=1)
+    canal_falso(monkeypatch, [entrada_do_canal(1, adiantada)])
+    resposta = cliente.post("/api/sincronizar").json()
+    assert resposta["novas"] == 1
+    assert resposta["descartadas"] == 0
+
+
+def test_relogio_do_sensor_muito_adiantado_e_descartado(cliente, monkeypatch):
+    adiantada = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
+    canal_falso(monkeypatch, [entrada_do_canal(1, adiantada)])
+    assert cliente.post("/api/sincronizar").json()["descartadas"] == 1
+
+
 # ---------- 5. datas do lote ----------
 
 def test_inicio_antes_do_fim_do_ultimo_lote_devolve_400(cliente):
