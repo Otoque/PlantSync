@@ -27,7 +27,7 @@ def converter_numero(valor):
         return None
     try:
         return float(valor)
-    except ValueError:
+    except (TypeError, ValueError):
         return None
 
 
@@ -41,13 +41,16 @@ def converter_data(texto):
 
 def converter_feed(feed):
     """Transforma uma entrada do ThingSpeak em uma leitura do PlantSync."""
-    entry_id = feed["entry_id"]
-    if not isinstance(entry_id, int):
-        raise ValueError(f"entry_id invalido: {entry_id}")
+    if not isinstance(feed, dict):
+        raise ValueError(f"entrada invalida: {feed}")
+    entry_id = feed.get("entry_id")
+    created_at = feed.get("created_at")
+    if not isinstance(entry_id, int) or not isinstance(created_at, str):
+        raise ValueError(f"entrada invalida: {feed}")
 
     return {
         "entry_id": entry_id,
-        "data_hora": converter_data(feed["created_at"]),
+        "data_hora": converter_data(created_at),
         "temperatura_c": converter_numero(feed.get("field1")),
         "umidade_pct": converter_numero(feed.get("field2")),
         "luminosidade_lux": converter_numero(feed.get("field5")),
@@ -62,11 +65,15 @@ def buscar_pagina(canal, parametros):
     try:
         resposta = requests.get(URL_FEEDS.format(canal=canal), params=parametros, timeout=15)
         resposta.raise_for_status()
+        dados = resposta.json()
+        if not isinstance(dados, dict) or not isinstance(dados.get("feeds"), list):
+            raise ValueError(f"corpo inesperado: {dados}")
+
         leituras = []
-        for feed in resposta.json()["feeds"]:
+        for feed in dados["feeds"]:
             leituras.append(converter_feed(feed))
         return leituras
-    except (requests.RequestException, ValueError, KeyError, TypeError, AttributeError) as erro:
+    except (requests.RequestException, ValueError) as erro:
         # O detalhe tecnico (em ingles) fica guardado no "from erro";
         # quem usa o painel ve so a mensagem em portugues.
         raise ErroThingSpeak(MENSAGEM_DE_ERRO) from erro
@@ -89,7 +96,7 @@ def buscar_leituras(canal, desde=None, chave_leitura=None):
 
     leituras = []
     # Limite de consultas para nao ficar em laco se o servico ignorar o "end".
-    for consulta in range(MAXIMO_DE_CONSULTAS):
+    for _ in range(MAXIMO_DE_CONSULTAS):
         pagina = buscar_pagina(canal, parametros)
         leituras.extend(pagina)
         if len(pagina) < LIMITE_POR_CONSULTA:
