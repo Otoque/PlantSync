@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import config
 from auxiliares import (
     INICIO,
+    agora_utc,
     corpo_de_lote,
     criar_lote,
     criar_lote_encerrado_com,
@@ -365,7 +366,7 @@ def test_leitura_no_futuro_ja_gravada_nao_atrapalha_o_comeco_da_busca(cliente, b
 
 def test_relogio_do_sensor_um_pouco_adiantado_e_aceito(cliente, monkeypatch):
     # Pequena diferenca entre relogios: 1 min a frente fica dentro da tolerancia.
-    adiantada = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=1)
+    adiantada = agora_utc() + timedelta(minutes=1)
     canal_falso(monkeypatch, [entrada_do_canal(1, adiantada)])
     resposta = cliente.post("/api/sincronizar").json()
     assert resposta["novas"] == 1
@@ -373,7 +374,7 @@ def test_relogio_do_sensor_um_pouco_adiantado_e_aceito(cliente, monkeypatch):
 
 
 def test_relogio_do_sensor_muito_adiantado_e_descartado(cliente, monkeypatch):
-    adiantada = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
+    adiantada = agora_utc() + timedelta(minutes=10)
     canal_falso(monkeypatch, [entrada_do_canal(1, adiantada)])
     assert cliente.post("/api/sincronizar").json()["descartadas"] == 1
 
