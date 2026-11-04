@@ -215,7 +215,8 @@ def test_segundo_lote_em_transito_devolve_400_citando_o_lote_aberto(cliente):
 def test_depois_de_encerrar_o_lote_e_possivel_criar_outro(cliente):
     primeiro = criar_lote(cliente)
     encerrar_lote(cliente, primeiro)
-    resposta = cliente.post("/api/lotes", json=corpo_de_lote(fruta="manga"))
+    # Sem inicio vale o horario atual, depois do fim do primeiro lote.
+    resposta = cliente.post("/api/lotes", json=corpo_de_lote(fruta="manga", inicio=None))
     assert resposta.status_code == 201
 
 
@@ -283,7 +284,7 @@ def test_editar_fruta_vale_para_o_lote_novo(cliente):
         umidade_min_pct=85.0, umidade_max_pct=95.0,
     )
 
-    novo = criar_lote(cliente)
+    novo = criar_lote(cliente, inicio=None)
     assert novo["faixa_segura"]["temp_max_c"] == 4.0
 
 

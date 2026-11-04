@@ -9,16 +9,25 @@ Laudo do lote por QR Code: uma visao publica e uma visao completa.
 """
 
 from models.tabelas import Fruta, Lote
+from services.analise import limpar_leituras, maior_buraco_em_minutos
 from services.erros import ErroNaoEncontrado
 from services.lotes import (
     analise_para_json,
     buscar_e_analisar,
+    leituras_do_lote,
     leituras_para_grafico,
     lote_basico_json,
 )
 
 # A mesma mensagem para codigo e token, para nao dar pistas de quais existem.
 MENSAGEM_NAO_ENCONTRADO = "Código não encontrado."
+
+# O selo precisa de dados suficientes para afirmar algo sobre a viagem. Valores
+# escolhidos pela equipe, a validar com produtor (ver docs/api-contrato.md):
+# 10 leituras sao cerca de 3 min de envio normal (uma a cada 20 s), e 30 min
+# sem leitura ja escondem uma parada com a porta aberta.
+MINIMO_LEITURAS_SELO = 10
+MAIOR_BURACO_SELO_MIN = 30
 
 
 def buscar_por_codigo_publico(sessao, codigo):
@@ -35,14 +44,17 @@ def buscar_por_token(sessao, token):
     return lote
 
 
-def tem_selo(lote, analise):
+def tem_selo(lote, analise, leituras):
     """
     O selo "transportado dentro da faixa segura" so aparece se o lote ja
-    chegou, tem leituras e ficou VERDE no calor e no frio.
+    chegou, tem leituras suficientes, sem buraco grande na viagem, e ficou
+    VERDE no calor e no frio. Leituras atrasadas contam assim que chegam.
     """
     if lote.fim is None:
         return False
-    if analise["amostras"] == 0:
+    if len(leituras) < MINIMO_LEITURAS_SELO:
+        return False
+    if maior_buraco_em_minutos(leituras, lote.inicio, lote.fim) > MAIOR_BURACO_SELO_MIN:
         return False
     return analise["nivel_acima"] == "VERDE" and analise["nivel_abaixo"] == "VERDE"
 
@@ -51,11 +63,12 @@ def visao_publica_json(sessao, lote):
     """O que o consumidor ve. Nada de curva, temperatura ou nivel de risco."""
     fruta = sessao.get(Fruta, lote.fruta_id)
     analise = buscar_e_analisar(sessao, lote)
+    leituras = limpar_leituras(leituras_do_lote(sessao, lote))
     return {
         "fruta": fruta.nome,
         "produtor": lote.produtor,
         "origem": lote.origem,
-        "selo_faixa_segura": tem_selo(lote, analise),
+        "selo_faixa_segura": tem_selo(lote, analise, leituras),
     }
 
 

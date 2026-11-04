@@ -9,12 +9,16 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from services.analise import TEMP_FISICA_MAX, TEMP_FISICA_MIN
+
 
 class FaixaSegura(BaseModel):
-    temp_min_c: float
-    temp_max_c: float
-    umidade_min_pct: float = Field(ge=0, le=100)
-    umidade_max_pct: float = Field(ge=0, le=100)
+    # allow_inf_nan=False recusa Infinity e NaN, que o JSON do Python aceita
+    # mas que quebrariam as respostas da API se fossem gravados no banco.
+    temp_min_c: float = Field(ge=TEMP_FISICA_MIN, le=TEMP_FISICA_MAX, allow_inf_nan=False)
+    temp_max_c: float = Field(ge=TEMP_FISICA_MIN, le=TEMP_FISICA_MAX, allow_inf_nan=False)
+    umidade_min_pct: float = Field(ge=0, le=100, allow_inf_nan=False)
+    umidade_max_pct: float = Field(ge=0, le=100, allow_inf_nan=False)
 
 
 class FrutaDados(FaixaSegura):

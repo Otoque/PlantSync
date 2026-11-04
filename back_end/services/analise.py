@@ -5,9 +5,10 @@ A logica foi trazida de analytics/eda_plantsync.py (funcoes enriquecer,
 classificar_carga e detectar_eventos_porta), reescrita sem pandas para a API
 ficar leve. Se um limiar mudar aqui, mude tambem no pipeline analitico.
 
-Diferenca em relacao ao pipeline: aqui os graus-hora sao contados nos DOIS
-lados da faixa (calor acima do teto e frio abaixo do piso). Na manga, o frio
-abaixo do piso causa corte negro (ver docs/api-contrato.md).
+Diferencas em relacao ao pipeline: aqui os graus-hora sao contados nos DOIS
+lados da faixa (calor acima do teto e frio abaixo do piso; na manga, o frio
+abaixo do piso causa corte negro) e cada intervalo usa a media das suas duas
+pontas (ver docs/api-contrato.md).
 
 Cada leitura e um dicionario com as chaves:
     data_hora (datetime), temperatura_c, umidade_pct, luminosidade_lux
@@ -25,6 +26,12 @@ TEMP_FISICA_MAX = 80.0
 
 # Luz acima disso dentro do compartimento lacrado indica porta aberta.
 LUX_PORTA_ABERTA = 300.0
+
+# Limites para aceitar umidade e luz. Luz do sol direto fica perto de 100 mil lux.
+UMIDADE_MIN = 0.0
+UMIDADE_MAX = 100.0
+LUX_MIN = 0.0
+LUX_MAX = 200000.0
 
 # Limiares de graus-hora definidos pela equipe no pipeline analitico.
 # Ainda precisam ser validados com um produtor parceiro.
@@ -59,6 +66,19 @@ def temperatura_valida(temperatura):
     return TEMP_FISICA_MIN <= temperatura <= TEMP_FISICA_MAX
 
 
+def valor_na_faixa_ou_nulo(valor, minimo, maximo):
+    """
+    Devolve o valor se ele estiver na faixa; senao, None. Infinito e NaN (que
+    o ThingSpeak pode mandar como texto, ex.: "1e999") tambem viram None,
+    porque qualquer comparacao com NaN da falso.
+    """
+    if valor is None:
+        return None
+    if minimo <= valor <= maximo:
+        return valor
+    return None
+
+
 def porta_aberta(luminosidade):
     """Sem medida de luz (None) nao conta como porta aberta."""
     if luminosidade is None:
@@ -87,9 +107,9 @@ def calcular_graus_hora(leituras, piso, teto):
     Soma, separados, o calor acima do teto e o frio abaixo do piso,
     cada um multiplicado pelo tempo. Devolve os dois: (acima, abaixo).
 
-    Igual ao pipeline analitico: a diferenca de cada leitura vale para o
-    intervalo desde a leitura anterior. As leituras devem vir em ordem.
-    Leitura exatamente no limite soma zero.
+    Em cada intervalo entre duas leituras, vale a media do excesso nas duas
+    pontas. Assim, esfriar de 30 para 1 grau soma o mesmo que esquentar de 1
+    para 30. As leituras devem vir em ordem. Leitura no limite tem excesso zero.
     """
     acima = 0.0
     abaixo = 0.0
@@ -97,9 +117,12 @@ def calcular_graus_hora(leituras, piso, teto):
     for leitura in leituras:
         if anterior is not None:
             intervalo_h = (leitura["data_hora"] - anterior["data_hora"]).total_seconds() / 3600
-            temperatura = leitura["temperatura_c"]
-            acima += max(0.0, temperatura - teto) * intervalo_h
-            abaixo += max(0.0, piso - temperatura) * intervalo_h
+            calor_antes = max(0.0, anterior["temperatura_c"] - teto)
+            calor_agora = max(0.0, leitura["temperatura_c"] - teto)
+            frio_antes = max(0.0, piso - anterior["temperatura_c"])
+            frio_agora = max(0.0, piso - leitura["temperatura_c"])
+            acima += (calor_antes + calor_agora) / 2 * intervalo_h
+            abaixo += (frio_antes + frio_agora) / 2 * intervalo_h
         anterior = leitura
     return acima, abaixo
 
@@ -124,6 +147,20 @@ def nivel_mais_grave(nivel_a, nivel_b):
 
 def duracao_em_minutos(inicio, fim):
     return round((fim - inicio).total_seconds() / 60, 1)
+
+
+def maior_buraco_em_minutos(leituras, inicio, fim):
+    """
+    Maior tempo sem leitura entre o inicio e o fim do lote, contando tambem
+    do inicio ate a primeira leitura e da ultima ate o fim.
+    As leituras devem vir limpas e em ordem.
+    """
+    maior = 0.0
+    anterior = inicio
+    for leitura in leituras:
+        maior = max(maior, duracao_em_minutos(anterior, leitura["data_hora"]))
+        anterior = leitura["data_hora"]
+    return max(maior, duracao_em_minutos(anterior, fim))
 
 
 def detectar_eventos_porta(leituras):
