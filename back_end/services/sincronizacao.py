@@ -15,12 +15,16 @@ from services.analise import (
     temperatura_valida,
     valor_na_faixa_ou_nulo,
 )
-from services.datas import para_utc
+from services.datas import agora_utc, para_utc
 
 # Leituras podem chegar atrasadas e fora de ordem, com o horario da medicao.
 # Por isso a busca volta alguns dias antes da ultima leitura gravada: cobre uma
 # viagem inteira guardada no sensor. Quem ja esta gravado nao e gravado de novo.
 MARGEM_DE_ATRASO = timedelta(days=7)
+
+# Leitura com horario depois de agora + esta folga vem de relogio errado no sensor.
+# A folga aceita a pequena diferenca normal entre o relogio dele e o nosso.
+FOLGA_DO_RELOGIO = timedelta(minutes=5)
 
 
 def ids_ja_gravados(sessao):
@@ -31,12 +35,25 @@ def ids_ja_gravados(sessao):
     return ids
 
 
+def limite_do_relogio():
+    return agora_utc() + FOLGA_DO_RELOGIO
+
+
 def inicio_da_busca(sessao):
     """De onde buscar no ThingSpeak. Banco vazio (None): busca tudo."""
-    ultima = sessao.query(Leitura).order_by(Leitura.data_hora.desc()).first()
+    # Ignora leitura com horario no futuro: a busca pularia para depois das reais.
+    consulta = sessao.query(Leitura).filter(Leitura.data_hora <= limite_do_relogio())
+    ultima = consulta.order_by(Leitura.data_hora.desc()).first()
     if ultima is None:
         return None
     return ultima.data_hora - MARGEM_DE_ATRASO
+
+
+def leitura_aproveitavel(leitura, limite):
+    """Descarta temperatura invalida e horario depois do limite (relogio errado)."""
+    if not temperatura_valida(leitura["temperatura_c"]):
+        return False
+    return para_utc(leitura["data_hora"]) <= limite
 
 
 def gravar_leitura(sessao, leitura):
@@ -61,11 +78,12 @@ def sincronizar(sessao):
         chave_leitura=CHAVE_LEITURA_THINGSPEAK,
     )
     gravados = ids_ja_gravados(sessao)
+    limite = limite_do_relogio()
 
     novas = 0
     descartadas = 0
     for leitura in recebidas:
-        if not temperatura_valida(leitura["temperatura_c"]):
+        if not leitura_aproveitavel(leitura, limite):
             descartadas += 1
         elif leitura["entry_id"] not in gravados:
             gravar_leitura(sessao, leitura)

@@ -45,5 +45,11 @@ class LoteNovo(BaseModel):
     faixa_segura: FaixaSegura | None = None
 
 
+class DadosDeLogin(BaseModel):
+    usuario: str = Field(min_length=1, max_length=100)
+    # O limite evita gastar tempo de hash com um texto enorme.
+    senha: str = Field(min_length=1, max_length=200)
+
+
 class Encerramento(BaseModel):
     fim: datetime | None = None
