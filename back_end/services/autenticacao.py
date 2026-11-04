@@ -19,6 +19,8 @@ from services.datas import agora_utc, formatar_utc
 from services.erros import ErroNaoAutenticado
 
 VALIDADE_DO_TOKEN = timedelta(hours=8)
+# O login nao tem limite de tentativas, entao a senha precisa ser dificil de adivinhar.
+TAMANHO_MINIMO_DA_SENHA = 12
 MENSAGEM_LOGIN_INVALIDO = "Usuário ou senha inválidos."
 MENSAGEM_SEM_LOGIN = "Faça login para continuar."
 
@@ -119,8 +121,6 @@ def encerrar_token_de_acesso(sessao, token):
 
 def usuario_ja_esta_correto(sessao, nome, senha):
     """Diz se o banco ja tem o usuario das variaveis de ambiente, com a mesma senha."""
-    if not nome or not senha:
-        return False
     usuario = sessao.query(Usuario).filter(Usuario.nome == nome).first()
     if usuario is None:
         return False
@@ -133,20 +133,28 @@ def apagar_usuarios_e_tokens(sessao):
     sessao.commit()
 
 
+def problema_nas_variaveis(nome, senha):
+    """Diz o que impede o login, sem repetir a senha; None se estiver tudo certo."""
+    if not nome or not senha:
+        return "PLANTSYNC_USUARIO e PLANTSYNC_SENHA nao foram definidas"
+    # strip: uma senha so de espacos nao conta como senha longa.
+    if len(senha.strip()) < TAMANHO_MINIMO_DA_SENHA:
+        return f"PLANTSYNC_SENHA precisa ter ao menos {TAMANHO_MINIMO_DA_SENHA} caracteres"
+    return None
+
+
 def preparar_usuario_inicial(sessao, nome, senha):
     """
     Deixa o banco igual as variaveis de ambiente, ao ligar o servidor. Como nao ha
-    cadastro pela API, o usuario delas e o unico: se ele mudou, ou se elas sumiram,
-    o usuario antigo e os tokens abertos deixam de valer.
+    cadastro pela API, o usuario delas e o unico: se ele mudou, se elas sumiram ou
+    se a senha for curta, o usuario antigo e os tokens abertos deixam de valer.
     """
-    if usuario_ja_esta_correto(sessao, nome, senha):
+    problema = problema_nas_variaveis(nome, senha)
+    if problema:
+        apagar_usuarios_e_tokens(sessao)
+        logger.warning("%s: a API esta no ar, mas ninguem consegue entrar.", problema)
         return
 
-    apagar_usuarios_e_tokens(sessao)
-    if nome and senha:
+    if not usuario_ja_esta_correto(sessao, nome, senha):
+        apagar_usuarios_e_tokens(sessao)
         cadastrar_usuario(sessao, nome, senha)
-    else:
-        logger.warning(
-            "PLANTSYNC_USUARIO e PLANTSYNC_SENHA nao foram definidas: "
-            "a API esta no ar, mas ninguem consegue entrar."
-        )

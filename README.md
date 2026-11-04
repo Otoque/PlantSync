@@ -134,8 +134,9 @@ uvicorn app:app --reload --port 8000
 ```
 
 **Antes de ligar**, escolha o usuário e a senha do painel no arquivo `back_end/.env`
-(`PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`). Esse arquivo fica fora do git, e não existe
-senha padrão: sem as duas variáveis, a API sobe, mas ninguém consegue entrar, e o log avisa.
+(`PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`, com ao menos 12 caracteres). Esse arquivo fica
+fora do git, e não existe senha padrão: sem as duas variáveis, ou com senha mais curta, a
+API sobe, mas ninguém consegue entrar, e o log avisa.
 Para trocar a senha, mude o `.env` e reinicie o servidor.
 
 - A API sobe em `http://localhost:8000`. A página `http://localhost:8000/docs`
