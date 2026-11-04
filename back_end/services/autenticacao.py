@@ -2,7 +2,7 @@
 Login simples com usuario e senha, sem perfis.
 
 - Senha: guardada so como hash com sal (scrypt, da biblioteca padrao do Python).
-- Sessao: um token aleatorio com validade, enviado em "Authorization: Bearer".
+- Acesso: um token aleatorio com validade, enviado em "Authorization: Bearer".
   No banco fica so o hash do token, entao quem ler o banco nao consegue entrar.
 - Usuario: nao ha cadastro pela API. O unico usuario vem das variaveis de ambiente
   PLANTSYNC_USUARIO e PLANTSYNC_SENHA, lidas quando o servidor liga.
@@ -14,15 +14,22 @@ import logging
 import secrets
 from datetime import timedelta
 
-from models.tabelas import SessaoDeLogin, Usuario
+from models.tabelas import TokenDeAcesso, Usuario
 from services.datas import agora_utc, formatar_utc
 from services.erros import ErroNaoAutenticado
 
-VALIDADE_DA_SESSAO = timedelta(hours=8)
+VALIDADE_DO_TOKEN = timedelta(hours=8)
 MENSAGEM_LOGIN_INVALIDO = "Usuário ou senha inválidos."
 MENSAGEM_SEM_LOGIN = "Faça login para continuar."
 
-# Sal usado so para gastar o mesmo tempo quando o usuario nao existe.
+# Custo do scrypt: uma das opcoes recomendadas pelo guia de senhas da OWASP
+# (Password Storage Cheat Sheet). Usa 16 MiB de memoria e leva cerca de 0,2 s.
+SCRYPT_N = 2**14
+SCRYPT_R = 8
+SCRYPT_P = 5
+
+# 16 bytes escritos em hexadecimal, usados so para gastar o mesmo tempo
+# quando o usuario nao existe.
 SAL_DE_USUARIO_INEXISTENTE = "00" * 16
 
 logger = logging.getLogger("plantsync")
@@ -30,7 +37,13 @@ logger = logging.getLogger("plantsync")
 
 def calcular_hash_da_senha(senha, sal):
     """scrypt e lento de proposito: dificulta testar milhoes de senhas se o banco vazar."""
-    resultado = hashlib.scrypt(senha.encode("utf-8"), salt=bytes.fromhex(sal), n=2**14, r=8, p=1)
+    resultado = hashlib.scrypt(
+        senha.encode("utf-8"),
+        salt=bytes.fromhex(sal),
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
+    )
     return resultado.hex()
 
 
@@ -51,17 +64,22 @@ def cadastrar_usuario(sessao, nome, senha):
     sessao.commit()
 
 
-def abrir_sessao_de_login(sessao, usuario):
-    """Cria o token da sessao. O token em si so existe na resposta ao usuario."""
+def criar_token_de_acesso(sessao, usuario):
+    """Cria o token de acesso. O token em si so existe na resposta ao usuario."""
     token = secrets.token_urlsafe(32)
-    expira_em = agora_utc() + VALIDADE_DA_SESSAO
-    sessao.add(SessaoDeLogin(
+    expira_em = agora_utc() + VALIDADE_DO_TOKEN
+    sessao.add(TokenDeAcesso(
         token_hash=hash_do_token(token),
         usuario_id=usuario.id,
         expira_em=expira_em,
     ))
     sessao.commit()
     return {"token": token, "expira_em": formatar_utc(expira_em)}
+
+
+def apagar_tokens_vencidos(sessao):
+    """Limpeza de passagem, a cada login, para a tabela nao crescer sem parar."""
+    sessao.query(TokenDeAcesso).filter(TokenDeAcesso.expira_em <= agora_utc()).delete()
 
 
 def fazer_login(sessao, nome, senha):
@@ -75,13 +93,16 @@ def fazer_login(sessao, nome, senha):
     if not senha_confere(senha, usuario):
         raise ErroNaoAutenticado(MENSAGEM_LOGIN_INVALIDO)
 
-    sessao.query(SessaoDeLogin).filter(SessaoDeLogin.expira_em <= agora_utc()).delete()
-    return abrir_sessao_de_login(sessao, usuario)
+    apagar_tokens_vencidos(sessao)
+    return criar_token_de_acesso(sessao, usuario)
 
 
 def conferir_token(sessao, token):
-    """Levanta ErroNaoAutenticado se o token nao existir ou tiver vencido."""
-    linha = sessao.get(SessaoDeLogin, hash_do_token(token))
+    """
+    Levanta ErroNaoAutenticado se o token nao existir ou tiver vencido.
+    O token vencido tambem e apagado do banco.
+    """
+    linha = sessao.get(TokenDeAcesso, hash_do_token(token))
     if linha is None:
         raise ErroNaoAutenticado(MENSAGEM_SEM_LOGIN)
     if linha.expira_em <= agora_utc():
@@ -90,9 +111,25 @@ def conferir_token(sessao, token):
         raise ErroNaoAutenticado(MENSAGEM_SEM_LOGIN)
 
 
-def encerrar_sessao_de_login(sessao, token):
-    linha = sessao.get(SessaoDeLogin, hash_do_token(token))
+def encerrar_token_de_acesso(sessao, token):
+    linha = sessao.get(TokenDeAcesso, hash_do_token(token))
     sessao.delete(linha)
+    sessao.commit()
+
+
+def usuario_ja_esta_correto(sessao, nome, senha):
+    """Diz se o banco ja tem o usuario das variaveis de ambiente, com a mesma senha."""
+    if not nome or not senha:
+        return False
+    usuario = sessao.query(Usuario).filter(Usuario.nome == nome).first()
+    if usuario is None:
+        return False
+    return senha_confere(senha, usuario)
+
+
+def apagar_usuarios_e_tokens(sessao):
+    sessao.query(TokenDeAcesso).delete()
+    sessao.query(Usuario).delete()
     sessao.commit()
 
 
@@ -100,18 +137,12 @@ def preparar_usuario_inicial(sessao, nome, senha):
     """
     Deixa o banco igual as variaveis de ambiente, ao ligar o servidor. Como nao ha
     cadastro pela API, o usuario delas e o unico: se ele mudou, ou se elas sumiram,
-    o usuario antigo e as sessoes abertas deixam de valer.
+    o usuario antigo e os tokens abertos deixam de valer.
     """
-    usuario = None
-    if nome and senha:
-        usuario = sessao.query(Usuario).filter(Usuario.nome == nome).first()
-    if usuario is not None and senha_confere(senha, usuario):
+    if usuario_ja_esta_correto(sessao, nome, senha):
         return
 
-    sessao.query(SessaoDeLogin).delete()
-    sessao.query(Usuario).delete()
-    sessao.commit()
-
+    apagar_usuarios_e_tokens(sessao)
     if nome and senha:
         cadastrar_usuario(sessao, nome, senha)
     else:

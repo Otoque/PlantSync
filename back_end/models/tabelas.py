@@ -79,8 +79,8 @@ class Usuario(Base):
     senha_hash: Mapped[str]
 
 
-class SessaoDeLogin(Base):
-    __tablename__ = "sessoes_de_login"
+class TokenDeAcesso(Base):
+    __tablename__ = "tokens_de_acesso"
 
     # Guarda o hash do token, nao o token: quem ler o banco nao consegue entrar.
     token_hash: Mapped[str] = mapped_column(primary_key=True)

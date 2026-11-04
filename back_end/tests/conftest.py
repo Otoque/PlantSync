@@ -12,20 +12,20 @@ from sqlalchemy.pool import StaticPool
 from app import app
 from models.banco import Base, abrir_sessao
 from models.tabelas import Usuario
-from services.autenticacao import abrir_sessao_de_login
+from services.autenticacao import criar_token_de_acesso
 from services.frutas import cadastrar_frutas_iniciais
 
 
 def token_de_teste(banco):
     """
-    Abre uma sessao direto no banco, sem passar pelo POST /api/login: o hash da
+    Cria um token direto no banco, sem passar pelo POST /api/login: o hash da
     senha e lento de proposito e deixaria cada um dos testes bem mais demorado.
     """
     with banco() as sessao:
         usuario = Usuario(nome="teste", sal="nao usado", senha_hash="nao usado")
         sessao.add(usuario)
         sessao.commit()
-        return abrir_sessao_de_login(sessao, usuario)["token"]
+        return criar_token_de_acesso(sessao, usuario)["token"]
 
 
 @pytest.fixture
@@ -67,5 +67,8 @@ def cliente(banco):
 
 @pytest.fixture
 def cliente_sem_login(cliente):
-    """Cliente HTTP ligado ao mesmo banco de teste, mas sem token de login."""
+    """
+    Cliente HTTP ligado ao mesmo banco de teste, mas sem token de login.
+    Recebe a fixture cliente so para herdar a troca do banco de verdade pelo de teste.
+    """
     return TestClient(app)
