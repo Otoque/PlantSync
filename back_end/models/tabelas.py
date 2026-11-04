@@ -67,3 +67,22 @@ class Leitura(Base):
     temperatura_c: Mapped[float]
     umidade_pct: Mapped[float | None]
     luminosidade_lux: Mapped[float | None]
+
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str] = mapped_column(unique=True)
+    # A senha nunca e gravada: so o sal e o hash dela (ver services/autenticacao.py).
+    sal: Mapped[str]
+    senha_hash: Mapped[str]
+
+
+class SessaoDeLogin(Base):
+    __tablename__ = "sessoes_de_login"
+
+    # Guarda o hash do token, nao o token: quem ler o banco nao consegue entrar.
+    token_hash: Mapped[str] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    expira_em: Mapped[datetime]
