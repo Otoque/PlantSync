@@ -31,5 +31,5 @@ def fazer_login(dados: DadosDeLogin, sessao: Session = Depends(abrir_sessao)):
 
 @router.post("/logout")
 def fazer_logout(token: str = Depends(exigir_login), sessao: Session = Depends(abrir_sessao)):
-    autenticacao.encerrar_sessao_de_login(sessao, token)
+    autenticacao.encerrar_token_de_acesso(sessao, token)
     return {"status": "sessão encerrada"}
