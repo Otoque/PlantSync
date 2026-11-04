@@ -9,6 +9,7 @@ As funcoes auxiliares (criar_lote, gravar_leituras, em...) ficam em auxiliares.p
 """
 
 from auxiliares import (
+    alertas_do_tipo,
     analise_do_lote,
     conferir_data_utc,
     criar_lote,
@@ -16,53 +17,17 @@ from auxiliares import (
     em_utc,
     encerrar_lote,
     gravar_leituras,
+    leitura_do_thingspeak,
     leituras_do_lote,
     leituras_por_hora,
     nova_leitura,
+    thingspeak_devolve,
+    thingspeak_fora_do_ar,
 )
-from services import thingspeak
-from services.thingspeak import ErroThingSpeak
 
 
 # ---------- funcoes auxiliares deste arquivo ----------
 
-def leitura_do_thingspeak(entry_id, data_hora, temperatura, umidade=90.0, lux=None):
-    """Leitura no formato que services.thingspeak.converter_feed devolve."""
-    return {
-        "entry_id": entry_id,
-        "data_hora": data_hora,
-        "temperatura_c": temperatura,
-        "umidade_pct": umidade,
-        "luminosidade_lux": lux,
-    }
-
-
-def thingspeak_devolve(monkeypatch, leituras):
-    """Faz a busca no ThingSpeak devolver 'leituras', sem internet."""
-
-    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
-    # que a funcao verdadeira receberia (*args, **kwargs) e ignora todos.
-    def buscar_falso(*args, **kwargs):
-        return list(leituras)
-
-    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
-
-
-def thingspeak_fora_do_ar(monkeypatch):
-    """Faz a busca no ThingSpeak falhar, como se o servico estivesse fora do ar."""
-
-    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
-    # que a funcao verdadeira receberia (*args, **kwargs) e sempre da erro.
-    def buscar_falso(*args, **kwargs):
-        raise ErroThingSpeak("Falha ao consultar o ThingSpeak: fora do ar")
-
-    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
-
-
-def alertas_do_tipo(cliente, tipo):
-    """Devolve so os alertas de GET /api/alertas com o 'tipo' pedido."""
-    alertas = cliente.get("/api/alertas").json()
-    return [alerta for alerta in alertas if alerta["tipo"] == tipo]
 
 
 # ---------- alertas: quando existem ----------
@@ -267,7 +232,8 @@ def test_alerta_tem_todos_os_campos_do_contrato(cliente, banco):
     gravar_leituras(banco, leituras_por_hora(5.0))
 
     alerta = cliente.get("/api/alertas").json()[0]
-    assert set(alerta.keys()) == {"lote_id", "fruta", "tipo", "nivel", "mensagem", "data_hora"}
+    campos = {"lote_id", "fruta", "tipo", "lado", "nivel", "mensagem", "data_hora"}
+    assert set(alerta.keys()) == campos
 
 
 def test_datas_dos_alertas_terminam_em_z(cliente, banco):
@@ -391,6 +357,6 @@ def test_leituras_sincronizadas_entram_na_analise_e_nos_alertas(cliente, monkeyp
     assert resposta["novas"] == 11
 
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora"] == 30.0
+    assert analise["graus_hora_acima"] == 30.0
     assert analise["nivel"] == "LARANJA"
     assert alertas_do_tipo(cliente, "risco_termico")[0]["nivel"] == "LARANJA"

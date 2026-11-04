@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from config import CORS_ORIGENS
-from controllers import frutas, lotes, monitoramento
+from controllers import frutas, laudos, lotes, monitoramento
 from models.banco import Base, SessaoLocal, engine
 from services.erros import ErroDeRegra, ErroNaoEncontrado, ErroThingSpeak
 from services.frutas import cadastrar_frutas_iniciais
@@ -48,6 +48,7 @@ app.add_middleware(
 app.include_router(frutas.router)
 app.include_router(lotes.router)
 app.include_router(monitoramento.router)
+app.include_router(laudos.router)
 
 
 # Todos os erros saem no formato do contrato: {"erro": "mensagem"}.
@@ -62,6 +63,7 @@ MENSAGENS_VALIDACAO = {
     "missing": "campo obrigatório",
     "float_parsing": "precisa ser um número",
     "float_type": "precisa ser um número",
+    "finite_number": "precisa ser um número finito",
     "int_parsing": "precisa ser um número inteiro",
     "string_type": "precisa ser um texto",
     "string_too_short": "não pode ficar vazio",

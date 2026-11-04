@@ -1,6 +1,6 @@
 """
 Constantes e funcoes auxiliares usadas pelos testes da API
-(test_api_frutas_lotes.py e test_api_alertas_sincronizacao.py).
+(os arquivos test_api_*.py).
 
 Os testes importam com "from auxiliares import ..." porque o pytest
 coloca a pasta tests/ no caminho de importacao.
@@ -9,13 +9,17 @@ coloca a pasta tests/ no caminho de importacao.
 from datetime import datetime, timedelta, timezone
 
 from models.tabelas import Leitura
+from services import thingspeak
+from services.erros import ErroThingSpeak
 
 INICIO = datetime(2026, 10, 24, 9, 0, 0)  # 24/10/2026 09:00 UTC
 
 LOTE_UVA = {
     "fruta": "uva",
+    "produtor": "Sítio Boa Vista",
     "origem": "Packing house Petrolina",
-    "porto_destino": "Suape",
+    "destino": "Porto de Suape",
+    "tipo_destino": "porto",
     "inicio": "2026-10-24T09:00:00Z",
 }
 
@@ -47,6 +51,7 @@ def fruta_melao(**mudancas):
         "temp_max_c": 5.0,
         "umidade_min_pct": 90.0,
         "umidade_max_pct": 95.0,
+        "risco_no_frio": None,
         "fonte": "Referência da faixa",
     }
     corpo.update(mudancas)
@@ -101,6 +106,15 @@ def encerrar_lote(cliente, lote, fim=None):
     if fim is None:
         return cliente.post(endereco)
     return cliente.post(endereco, json={"fim": fim})
+
+
+def criar_lote_encerrado_com(cliente, banco, leituras, fim, **mudancas):
+    """Cria o lote, grava as leituras e encerra em 'fim'; exige sucesso."""
+    lote = criar_lote(cliente, **mudancas)
+    gravar_leituras(banco, leituras)
+    resposta = encerrar_lote(cliente, lote, fim=fim)
+    assert resposta.status_code == 200, resposta.text
+    return lote
 
 
 def detalhe_do_lote(cliente, lote):
@@ -181,3 +195,63 @@ def conferir_data_utc(texto):
     """Confere que a data termina em Z e e ISO 8601 sem fracao de segundo."""
     assert texto.endswith("Z"), texto
     ler_data(texto)
+
+
+def alertas_do_tipo(cliente, tipo):
+    """Devolve so os alertas de GET /api/alertas com o 'tipo' pedido."""
+    alertas = cliente.get("/api/alertas").json()
+    return [alerta for alerta in alertas if alerta["tipo"] == tipo]
+
+
+def lote_da_lista(cliente, lote):
+    """Procura o lote em GET /api/lotes e devolve o item dele."""
+    for item in cliente.get("/api/lotes").json():
+        if item["id"] == lote["id"]:
+            return item
+    raise AssertionError(f"lote {lote['id']} nao esta na lista")
+
+
+# ---------- ThingSpeak falso (sem internet) ----------
+
+def leitura_do_thingspeak(entry_id, data_hora, temperatura, umidade=90.0, lux=None):
+    """Leitura no formato que services.thingspeak.converter_feed devolve."""
+    return {
+        "entry_id": entry_id,
+        "data_hora": data_hora,
+        "temperatura_c": temperatura,
+        "umidade_pct": umidade,
+        "luminosidade_lux": lux,
+    }
+
+
+def thingspeak_devolve(monkeypatch, leituras):
+    """Faz a busca no ThingSpeak devolver 'leituras', sem internet."""
+
+    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
+    # que a funcao verdadeira receberia (*args, **kwargs) e ignora todos.
+    def buscar_falso(*args, **kwargs):
+        return list(leituras)
+
+    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)
+
+
+def leituras_do_thingspeak(horas, temperatura):
+    """
+    Uma leitura do ThingSpeak por hora da lista, todas com a mesma temperatura.
+    O entry_id e a hora + 1, entao a mesma hora sempre tem o mesmo entry_id.
+    """
+    leituras = []
+    for hora in horas:
+        leituras.append(leitura_do_thingspeak(hora + 1, em_utc(hora), temperatura))
+    return leituras
+
+
+def thingspeak_fora_do_ar(monkeypatch):
+    """Faz a busca no ThingSpeak falhar, como se o servico estivesse fora do ar."""
+
+    # Funcao falsa no lugar de buscar_leituras: aceita qualquer argumento
+    # que a funcao verdadeira receberia (*args, **kwargs) e sempre da erro.
+    def buscar_falso(*args, **kwargs):
+        raise ErroThingSpeak("Falha ao consultar o ThingSpeak: fora do ar")
+
+    monkeypatch.setattr(thingspeak, "buscar_leituras", buscar_falso)

@@ -25,6 +25,8 @@ class Fruta(Base):
     temp_max_c: Mapped[float]
     umidade_min_pct: Mapped[float]
     umidade_max_pct: Mapped[float]
+    # Nome do dano que o frio causa na fruta (ex.: "corte negro"). Pode ficar vazio.
+    risco_no_frio: Mapped[str | None]
     fonte: Mapped[str]
 
 
@@ -33,10 +35,19 @@ class Lote(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     fruta_id: Mapped[str] = mapped_column(ForeignKey("frutas.id"))
+    produtor: Mapped[str]
     origem: Mapped[str]
-    porto_destino: Mapped[str]
+    # Para onde o caminhao leva a carga: um porto (exportacao) ou o mercado
+    # interno (Ceasa, atacado). Ex.: destino "Ceasa Recife", tipo "mercado_interno".
+    destino: Mapped[str]
+    tipo_destino: Mapped[str]
     inicio: Mapped[datetime]
     fim: Mapped[datetime | None]
+
+    # Codigos aleatorios do laudo (ver services/laudos.py):
+    # o publico vai no QR Code; o token e o segredo do laudo completo.
+    codigo_publico: Mapped[str] = mapped_column(unique=True)
+    token_laudo: Mapped[str] = mapped_column(unique=True)
 
     # Copia da faixa segura no momento em que o lote foi criado.
     # Assim, editar a fruta depois nao muda a analise de lotes antigos.

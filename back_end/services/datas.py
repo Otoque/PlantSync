@@ -29,6 +29,11 @@ def formatar_utc(data):
     return data.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def formatar_para_thingspeak(data):
+    """Formato dos parametros start e end do ThingSpeak, em UTC."""
+    return para_utc(data).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def hora_recife(data):
     """
     Texto com hora e dia no horario de Recife, ex.: '18:00 de 24/10'.

@@ -135,7 +135,8 @@ uvicorn app:app --reload --port 8000
 - A API sobe em `http://localhost:8000`. A página `http://localhost:8000/docs`
   lista todas as rotas e permite testá-las pelo navegador.
 - Na primeira execução é criado o banco `back_end/plantsync.db` (SQLite, fora do git)
-  com as frutas iniciais.
+  com as frutas iniciais. Ao atualizar para uma versão com tabelas novas (como a v0.4
+  do contrato), apague esse arquivo: ele é recriado na próxima execução.
 - Para trazer as leituras do ThingSpeak: `POST /api/sincronizar` (pela página `/docs`
   ou `curl -X POST http://localhost:8000/api/sincronizar`).
 - Configurações opcionais (banco, canal, origens liberadas no CORS) ficam em
@@ -151,8 +152,24 @@ Rotas, exemplos de JSON e regras estão em [`docs/api-contrato.md`](docs/api-con
 | Uva de mesa | 0 a 2 °C | 85 a 95% | Embrapa Semiárido, *Cultivo da videira* (Lima, 2016) |
 | Manga | 10 a 13 °C | 85 a 90% | USDA, *Agriculture Handbook 66* (Paull; Chen, 2016); Embrapa Semiárido, *Cultivo da mangueira* (Assis, 2015) |
 
+A faixa da uva segue a Embrapa: 0 °C para uva sem semente e 2 °C para uva com semente
+(LIMA, 2016).
+
 Referências completas no fim do contrato da API. Os limiares de risco em graus-hora
 (5, 20 e 50 °C·h) foram definidos pela equipe e ainda serão validados com um produtor.
+
+**Destino do lote.** O PlantSync acompanha o transporte rodoviário no Brasil: o caminhão
+leva a carga do packing house até um porto (`tipo_destino` = `porto`) ou até o mercado
+interno, como a Ceasa (`mercado_interno`).
+
+**Risco nos dois lados da faixa.** A API soma os graus-hora de calor (acima do teto) e
+de frio (abaixo do piso) separados, e o nível do lote é o pior dos dois. Na manga, o
+frio abaixo de 10 °C causa corte negro e pode levar à rejeição da carga.
+
+**Laudo por QR Code.** Cada lote tem um `codigo_publico`, que vai no QR Code da caixa e
+abre só a visão do consumidor (`GET /api/publico/{codigo}`: fruta, produtor, origem e o
+selo "transportado dentro da faixa segura"), e um `token_laudo` secreto, enviado ao
+produtor e ao importador, que abre o laudo completo (`GET /api/laudos/{token}`).
 
 ### Testes de contrato da API
 
