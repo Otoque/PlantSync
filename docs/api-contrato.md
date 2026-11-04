@@ -1,6 +1,6 @@
 # Contrato da API do PlantSync
 
-Versão 0.6 (rascunho, 04/11/2026). Este documento descreve o que o backend entrega ao
+Versão 0.6 (rascunho, 04/11/2026; sincronização revista em seguida). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
 
 ## Mudanças da v0.6 (em relação à v0.5)
@@ -514,7 +514,11 @@ Busca no ThingSpeak as leituras do canal configurado e grava no banco as que ain
 existem (a chave é o `entry_id` do ThingSpeak, então repetir a chamada não duplica nada).
 Sem corpo. Com o banco vazio busca tudo; depois, desde a última leitura gravada menos
 7 dias. Como cada consulta ao ThingSpeak traz no máximo 8000 leituras (cerca de 44 h a
-uma leitura a cada 20 s), o backend faz quantas consultas forem precisas.
+uma leitura a cada 20 s), o backend faz quantas consultas forem precisas, pedindo a cada
+vez as leituras anteriores à mais antiga recebida. Isso supõe que `results` devolve as
+entradas **mais recentes** da janela. A documentação da MathWorks não diz isso; conferimos
+no canal 3493443 em 04/11/2026 (`results=3` com `start` e `end` devolveu as 3 últimas da
+janela), mas com poucas entradas: ainda falta repetir com mais de 8000.
 
 ```json
 {
@@ -528,8 +532,10 @@ uma leitura a cada 20 s), o backend faz quantas consultas forem precisas.
 - `recebidas`: quantas leituras o ThingSpeak devolveu na janela buscada, incluindo as que
   já estavam gravadas.
 - `novas`: quantas foram gravadas agora.
-- `descartadas`: quantas a auditoria rejeitou (sem temperatura ou com valor
-  fisicamente impossível).
+- `descartadas`: quantas a auditoria rejeitou: sem temperatura, com valor fisicamente
+  impossível ou com horário mais de 5 min à frente do relógio do backend (relógio do
+  sensor errado). Sem essa regra, uma leitura datada de 2029 faria a busca pular as
+  leituras reais. A leitura descartada não é corrigida nem recuperada.
 - Umidade fora de 0 a 100 % ou luz fora de 0 a 200 000 lux (inclusive infinito e `NaN`) é
   gravada como `null`, sem descartar a leitura.
 
