@@ -18,10 +18,16 @@ from fastapi.responses import JSONResponse
 # pegamos tambem o 404 de rota inexistente, que o proprio FastAPI levanta.
 from starlette.exceptions import HTTPException
 
-from config import CORS_ORIGENS
-from controllers import frutas, laudos, lotes, monitoramento
+from config import CORS_ORIGENS, PLANTSYNC_SENHA, PLANTSYNC_USUARIO
+from controllers import autenticacao, frutas, laudos, lotes, monitoramento
 from models.banco import Base, SessaoLocal, engine
-from services.erros import ErroDeRegra, ErroNaoEncontrado, ErroThingSpeak
+from services.autenticacao import preparar_usuario_inicial
+from services.erros import (
+    ErroDeRegra,
+    ErroNaoAutenticado,
+    ErroNaoEncontrado,
+    ErroThingSpeak,
+)
 from services.frutas import cadastrar_frutas_iniciais
 
 
@@ -29,10 +35,11 @@ from services.frutas import cadastrar_frutas_iniciais
 # o que vem antes do yield roda ao ligar; o que viesse depois rodaria ao desligar.
 @asynccontextmanager
 async def ao_iniciar(app):
-    """Cria as tabelas e as frutas iniciais na primeira execucao."""
+    """Cria as tabelas e as frutas iniciais e prepara o usuario de login."""
     Base.metadata.create_all(engine)
     with SessaoLocal() as sessao:
         cadastrar_frutas_iniciais(sessao)
+        preparar_usuario_inicial(sessao, PLANTSYNC_USUARIO, PLANTSYNC_SENHA)
     yield
 
 
@@ -42,9 +49,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGENS,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
+app.include_router(autenticacao.router)
 app.include_router(frutas.router)
 app.include_router(lotes.router)
 app.include_router(monitoramento.router)
@@ -67,6 +75,7 @@ MENSAGENS_VALIDACAO = {
     "int_parsing": "precisa ser um número inteiro",
     "string_type": "precisa ser um texto",
     "string_too_short": "não pode ficar vazio",
+    "string_too_long": "texto longo demais",
     "string_pattern_mismatch": "formato inválido",
     "greater_than_equal": "valor abaixo do mínimo permitido",
     "less_than_equal": "valor acima do máximo permitido",
@@ -83,6 +92,14 @@ def resposta_de_erro(codigo, mensagem):
 @app.exception_handler(ErroDeRegra)
 def tratar_erro_de_regra(request: Request, erro: ErroDeRegra):
     return resposta_de_erro(400, str(erro))
+
+
+@app.exception_handler(ErroNaoAutenticado)
+def tratar_nao_autenticado(request: Request, erro: ErroNaoAutenticado):
+    # O cabecalho WWW-Authenticate avisa qual tipo de login a API espera.
+    resposta = resposta_de_erro(401, str(erro))
+    resposta.headers["WWW-Authenticate"] = "Bearer"
+    return resposta
 
 
 @app.exception_handler(ErroNaoEncontrado)

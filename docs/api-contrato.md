@@ -1,7 +1,20 @@
 # Contrato da API do PlantSync
 
-Versão 0.6 (rascunho, 04/11/2026; sincronização revista em seguida). Este documento descreve o que o backend entrega ao
+Versão 0.7 (rascunho, 04/11/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
+
+## Mudanças da v0.7 (em relação à v0.6)
+
+**Login simples, com usuário e senha, sem perfis** (decisão de 04/11/2026).
+
+- **O que muda para o painel:** toda rota passa a exigir o cabeçalho
+  `Authorization: Bearer <token>`, menos `POST /api/login`, `GET /api/saude`,
+  `GET /api/publico/{codigo}` e `GET /api/laudos/{token}`. Sem token válido, a resposta é
+  `401`, e o painel deve mandar o usuário para a tela de login.
+- **Rotas novas:** `POST /api/login` e `POST /api/logout`.
+- **O QR Code não muda:** a visão pública e o laudo continuam abrindo sem login.
+- O formato das outras rotas não muda. O banco da v0.6 continua valendo: as tabelas novas
+  são criadas sozinhas na próxima execução.
 
 ## Mudanças da v0.6 (em relação à v0.5)
 
@@ -59,7 +72,9 @@ banco é recriado na próxima execução.
 - Corpo das requisições e respostas em JSON, codificação UTF-8.
 - CORS liberado para o painel em desenvolvimento: `http://localhost:5500` e
   `http://127.0.0.1:5500`. Outras origens entram pela variável `CORS_ORIGENS`
-  (lista separada por vírgula).
+  (lista separada por vírgula). Os cabeçalhos aceitos são `Authorization` e `Content-Type`.
+- Login: toda rota exige `Authorization: Bearer <token>`, menos as quatro marcadas como
+  abertas na tabela de endpoints.
 - Datas e horas dos campos JSON em ISO 8601, sempre em UTC com o sufixo `Z`
   (ex.: `2026-10-25T17:30:00Z`). Quem converte para `America/Recife` (UTC−3) é o
   painel. A única exceção é o texto livre do campo `mensagem` dos alertas, que já vem
@@ -77,11 +92,18 @@ banco é recriado na próxima execução.
 | 200 | Consulta ou ação concluída. |
 | 201 | Lote criado. |
 | 400 | Dado inválido no corpo da requisição. A mensagem começa pelo campo, ex.: `"fruta: campo obrigatório"`. |
+| 401 | Sem login válido, ou usuário ou senha errados. |
 | 404 | Lote, fruta, código, token ou rota inexistente. |
 | 502 | O ThingSpeak não respondeu, respondeu com erro ou mandou dados fora do formato. |
 
 ## Conceitos
 
+- **Login**: há um único usuário, sem perfis e sem cadastro pela API. Ele vem das
+  variáveis de ambiente `PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`, lidas quando o servidor
+  liga. Não existe senha padrão: sem as duas, a API sobe, ninguém entra e o log avisa. Se
+  elas mudarem, o usuário antigo e as sessões abertas deixam de valer na próxima
+  inicialização. A senha é guardada só como hash com sal (scrypt), e o token de sessão, só
+  como hash. O token vale 8 h. Ele não é um JWT: é um texto aleatório conferido no banco.
 - **Lote**: uma carga de fruta levada de caminhão de uma origem (packing house) até um
   destino: um porto, para exportação, ou o mercado interno (Ceasa, atacado). Tem início
   e, quando chega ao destino, fim.
@@ -143,15 +165,19 @@ banco é recriado na próxima execução.
 
   **Um QR, duas visões.** O QR leva à página do lote com o `codigo_publico`; quem também
   tem o `token_laudo` (link enviado em particular) vê o laudo completo. Usamos um token
-  secreto em vez de login porque o login com perfis (RF07) ficou fora do escopo: o
-  link funciona como a chave de um documento compartilhado. Por isso o token nunca vai no
-  QR, e só o painel interno (`GET /api/lotes/{id}`) o mostra.
+  secreto porque o produtor e o importador não têm login no painel: o link funciona como
+  a chave de um documento compartilhado. Por isso o token nunca vai no QR, e só quem tem
+  login vê o `token_laudo`, em `GET /api/lotes/{id}`.
 
 ## Endpoints
 
+Todas exigem login, menos as marcadas como **abertas**.
+
 | Método | Rota | Para que serve |
 |---|---|---|
-| GET | `/api/saude` | Verificar se a API está no ar. |
+| POST | `/api/login` | **Aberta.** Entrar com usuário e senha e receber o token. |
+| POST | `/api/logout` | Encerrar a sessão do token enviado. |
+| GET | `/api/saude` | **Aberta.** Verificar se a API está no ar. |
 | GET | `/api/frutas` | Listar as frutas e suas faixas seguras. |
 | POST | `/api/frutas` | Cadastrar uma fruta com sua faixa. |
 | PUT | `/api/frutas/{id}` | Editar o nome, a faixa ou a fonte de uma fruta. |
@@ -162,8 +188,58 @@ banco é recriado na próxima execução.
 | GET | `/api/lotes/{id}/leituras` | Histórico de leituras do lote (para os gráficos). |
 | GET | `/api/alertas` | Alertas ativos para o painel. |
 | POST | `/api/sincronizar` | Buscar leituras novas no ThingSpeak e gravar no banco. |
-| GET | `/api/publico/{codigo}` | Visão pública do lote (consumidor, via QR Code). |
-| GET | `/api/laudos/{token}` | Laudo completo do lote (produtor e importador). |
+| GET | `/api/publico/{codigo}` | **Aberta.** Visão pública do lote (consumidor, via QR Code). |
+| GET | `/api/laudos/{token}` | **Aberta.** Laudo completo do lote (produtor e importador). |
+
+---
+
+### POST `/api/login`
+
+Corpo:
+
+```json
+{ "usuario": "operador", "senha": "a senha definida no ambiente" }
+```
+
+`usuario` tem de 1 a 100 caracteres, e `senha`, de 1 a 200; fora disso, `400`.
+
+Resposta `200`:
+
+```json
+{ "token": "pB3x...texto aleatório...", "expira_em": "2026-11-05T02:00:00Z" }
+```
+
+O painel envia esse token nas outras rotas: `Authorization: Bearer pB3x...`. O token vale
+8 h e não é renovado: quando vence, é preciso entrar de novo.
+
+Resposta `401`, igual para usuário inexistente e senha errada, para não revelar quais
+usuários existem:
+
+```json
+{ "erro": "Usuário ou senha inválidos." }
+```
+
+---
+
+### POST `/api/logout`
+
+Encerra a sessão do token enviado no cabeçalho. Sem corpo. As outras sessões continuam
+valendo. Resposta `200`:
+
+```json
+{ "status": "sessão encerrada" }
+```
+
+---
+
+### Resposta sem login
+
+Qualquer rota protegida, sem token, com token inválido ou vencido ou depois do logout,
+responde `401` com o cabeçalho `WWW-Authenticate: Bearer`:
+
+```json
+{ "erro": "Faça login para continuar." }
+```
 
 ---
 
@@ -636,12 +712,16 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
   (ver `POST /api/lotes`). Para acompanhar cargas simultâneas, cada lote precisaria do
   seu próprio sensor e canal, e o lote passaria a guardar o número do canal.
 
-- **Rotas internas abertas, com id sequencial (decisão pendente do Pedro).** Como o login
-  (RF07) ficou fora do escopo, `GET /api/lotes`, `GET /api/lotes/{id}` e
-  `GET /api/lotes/{id}/leituras` não pedem autenticação. Quem alcança a API consegue
-  percorrer os ids (1, 2, 3...) e ler a curva e o `token_laudo` de todos os lotes, o que
-  anula o segredo do link enquanto a API estiver exposta. Por enquanto, a API deve rodar só
-  em rede de confiança. Não há rota para trocar um token vazado.
+- **Login sem limite de tentativas.** Não há bloqueio depois de várias senhas erradas. O
+  hash lento dificulta, mas não impede, testar senhas pela rede: use uma senha forte.
+- **HTTPS fica fora da API.** Localmente a API usa HTTP. Se ela for publicada, é preciso
+  HTTPS na frente, senão a senha e os tokens passam às claras pela rede.
+- **Um usuário só, sem perfis.** Todos usam o mesmo login, e não há registro de quem fez o
+  quê. Para trocar a senha, mude a variável e reinicie o servidor.
+- **`/docs` aberto.** A página `/docs` e o `/openapi.json` abrem sem login, mas só descrevem
+  as rotas, sem nenhum dado. Para testar uma rota protegida ali, use o botão Authorize.
+- **Laudo pelo link.** Quem tiver o link do laudo vê a curva, sem login. Não há rota para
+  trocar um `token_laudo` vazado.
 - **Leitura com mais de 7 dias de atraso.** Se já houver leitura mais nova gravada, uma
   leitura medida mais de 7 dias antes dela não é mais buscada.
 - **Cobertura mínima do selo.** Um lote muito curto pode ganhar o selo mesmo fora da faixa,
@@ -651,7 +731,8 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
 
 ## Fora deste contrato (por enquanto)
 
-- Login e perfis (RF07): fora do escopo (decisão de 03/11/2026).
+- Perfis de usuário (Operador Logístico e Gestor de Agronegócio, do RF07) e cadastro de
+  usuários pela API: fora do escopo (decisão de 04/11/2026).
 - Onde fica o sensor (dentro da carga ou placa do lado de fora) e envio ao vivo por
   MQTT: em aberto. Não muda este contrato enquanto as leituras chegarem ao ThingSpeak
   com o horário da medição.

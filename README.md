@@ -129,18 +129,26 @@ Requer Python 3.10 ou mais novo (testado no 3.14). Na pasta `back_end`:
 python -m venv .venv
 .venv\Scripts\activate          # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
+copy .env.example .env           # Linux/macOS: cp .env.example .env
 uvicorn app:app --reload --port 8000
 ```
+
+**Antes de ligar**, escolha o usuário e a senha do painel no arquivo `back_end/.env`
+(`PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`). Esse arquivo fica fora do git, e não existe
+senha padrão: sem as duas variáveis, a API sobe, mas ninguém consegue entrar, e o log avisa.
+Para trocar a senha, mude o `.env` e reinicie o servidor.
 
 - A API sobe em `http://localhost:8000`. A página `http://localhost:8000/docs`
   lista todas as rotas e permite testá-las pelo navegador.
 - Na primeira execução é criado o banco `back_end/plantsync.db` (SQLite, fora do git)
   com as frutas iniciais. Ao atualizar para uma versão com tabelas novas (como a v0.4
   do contrato), apague esse arquivo: ele é recriado na próxima execução.
-- Para trazer as leituras do ThingSpeak: `POST /api/sincronizar` (pela página `/docs`
-  ou `curl -X POST http://localhost:8000/api/sincronizar`).
-- Configurações opcionais (banco, canal, origens liberadas no CORS) ficam em
-  `back_end/.env`; o modelo é `back_end/.env.example`.
+- Toda rota exige login, menos `/api/login`, `/api/saude` e as duas do QR Code
+  (`/api/publico/{codigo}` e `/api/laudos/{token}`). Faça `POST /api/login` e envie o token
+  recebido em `Authorization: Bearer <token>`. Na página `/docs`, use o botão Authorize.
+- Para trazer as leituras do ThingSpeak: `POST /api/sincronizar`, com o login feito.
+- Configurações opcionais (banco, canal, origens liberadas no CORS) também ficam em
+  `back_end/.env`.
 - Testes: `python -m pytest -q`, dentro de `back_end`.
 
 Rotas, exemplos de JSON e regras estão em [`docs/api-contrato.md`](docs/api-contrato.md).

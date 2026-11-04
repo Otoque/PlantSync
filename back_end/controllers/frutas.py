@@ -3,11 +3,13 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from controllers.autenticacao import exigir_login
 from models.banco import abrir_sessao
 from models.entradas import FrutaDados, FrutaNova
 from services import frutas
 
-router = APIRouter(prefix="/api/frutas", tags=["frutas"])
+# Todas as rotas deste arquivo exigem login.
+router = APIRouter(prefix="/api/frutas", tags=["frutas"], dependencies=[Depends(exigir_login)])
 
 
 @router.get("")
