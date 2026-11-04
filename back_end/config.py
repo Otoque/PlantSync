@@ -11,6 +11,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def separar_origens(texto):
+    """Transforma "a, b," em ["a", "b"]: tira espacos e itens vazios."""
+    origens = []
+    for origem in texto.split(","):
+        origem = origem.strip()
+        if origem:
+            origens.append(origem)
+    return origens
+
+
 PASTA_BACKEND = os.path.dirname(os.path.abspath(__file__))
 
 # Banco SQLite em arquivo dentro de back_end/. Para usar PostgreSQL, basta
@@ -26,7 +37,7 @@ CANAL_THINGSPEAK = int(os.getenv("CANAL_THINGSPEAK", "3493443"))
 CHAVE_LEITURA_THINGSPEAK = os.getenv("CHAVE_LEITURA_THINGSPEAK")
 
 # Enderecos do painel web que podem chamar a API pelo navegador.
-CORS_ORIGENS = os.getenv(
+CORS_ORIGENS = separar_origens(os.getenv(
     "CORS_ORIGENS",
     "http://localhost:5500,http://127.0.0.1:5500",
-).split(",")
+))

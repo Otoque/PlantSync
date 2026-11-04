@@ -13,6 +13,7 @@ FRUTAS_INICIAIS = [
         "temp_max_c": 2.0,
         "umidade_min_pct": 85.0,
         "umidade_max_pct": 95.0,
+        "risco_no_frio": None,
         "fonte": "Embrapa Semiárido, Cultivo da videira (Lima, 2016)",
     },
     {
@@ -22,6 +23,8 @@ FRUTAS_INICIAIS = [
         "temp_max_c": 13.0,
         "umidade_min_pct": 85.0,
         "umidade_max_pct": 90.0,
+        # Corte negro: escurecimento da polpa pelo frio (MOVIMENTO ECONOMICO, 2026).
+        "risco_no_frio": "corte negro",
         "fonte": "USDA, Agriculture Handbook 66 (Paull e Chen, 2016); "
                  "Embrapa Semiárido, Cultivo da mangueira (Assis, 2015)",
     },
@@ -77,6 +80,7 @@ def atualizar_fruta(sessao, fruta_id, dados):
 
     fruta.nome = dados.nome
     fruta.fonte = dados.fonte
+    fruta.risco_no_frio = dados.risco_no_frio
     fruta.temp_min_c = dados.temp_min_c
     fruta.temp_max_c = dados.temp_max_c
     fruta.umidade_min_pct = dados.umidade_min_pct
@@ -93,5 +97,6 @@ def fruta_para_json(fruta):
         "temp_max_c": fruta.temp_max_c,
         "umidade_min_pct": fruta.umidade_min_pct,
         "umidade_max_pct": fruta.umidade_max_pct,
+        "risco_no_frio": fruta.risco_no_frio,
         "fonte": fruta.fonte,
     }
