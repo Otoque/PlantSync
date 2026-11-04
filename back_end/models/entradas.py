@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from services.analise import TEMP_FISICA_MAX, TEMP_FISICA_MIN
+from models.limites import TEMP_FISICA_MAX, TEMP_FISICA_MIN
 
 
 class FaixaSegura(BaseModel):

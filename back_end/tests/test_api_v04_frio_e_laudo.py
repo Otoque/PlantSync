@@ -18,6 +18,7 @@ from auxiliares import (
     conferir_data_utc,
     corpo_de_lote,
     criar_lote,
+    criar_lote_encerrado_com,
     detalhe_do_lote,
     em,
     encerrar_lote,
@@ -63,24 +64,17 @@ def criar_lote_encerrado_sem_buracos(cliente, banco, temperaturas, fruta="manga"
     Uma leitura a cada 10 min desde o inicio do lote, encerrando na ultima.
     Assim o selo so depende do nivel de risco, nao da falta de dados.
     """
-    lote = criar_lote(cliente, fruta=fruta)
     leituras = []
     for numero, temperatura in enumerate(temperaturas):
         leituras.append(nova_leitura(em(0, numero * 10), temperatura))
-    gravar_leituras(banco, leituras)
     fim = em(0, (len(temperaturas) - 1) * 10).strftime(FORMATO_DATA)
-    resposta = encerrar_lote(cliente, lote, fim=fim)
-    assert resposta.status_code == 200, resposta.text
-    return lote
+    return criar_lote_encerrado_com(cliente, banco, leituras, fim, fruta=fruta)
 
 
 def criar_lote_encerrado(cliente, banco, temperaturas, fruta="manga"):
     """Cria o lote, grava uma leitura por hora e encerra depois da ultima leitura."""
-    lote = criar_lote(cliente, fruta=fruta)
-    gravar_leituras(banco, leituras_nas_horas(temperaturas))
-    resposta = encerrar_lote(cliente, lote, fim=FIM_DO_LOTE)
-    assert resposta.status_code == 200, resposta.text
-    return lote
+    leituras = leituras_nas_horas(temperaturas)
+    return criar_lote_encerrado_com(cliente, banco, leituras, FIM_DO_LOTE, fruta=fruta)
 
 
 def visao_publica(cliente, lote):

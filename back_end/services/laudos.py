@@ -9,11 +9,12 @@ Laudo do lote por QR Code: uma visao publica e uma visao completa.
 """
 
 from models.tabelas import Fruta, Lote
-from services.analise import limpar_leituras, maior_buraco_em_minutos
+from services.analise import analisar_lote, limpar_leituras, maior_buraco_em_minutos
 from services.erros import ErroNaoEncontrado
 from services.lotes import (
     analise_para_json,
     buscar_e_analisar,
+    faixa_do_lote,
     leituras_do_lote,
     leituras_para_grafico,
     lote_basico_json,
@@ -62,8 +63,8 @@ def tem_selo(lote, analise, leituras):
 def visao_publica_json(sessao, lote):
     """O que o consumidor ve. Nada de curva, temperatura ou nivel de risco."""
     fruta = sessao.get(Fruta, lote.fruta_id)
-    analise = buscar_e_analisar(sessao, lote)
     leituras = limpar_leituras(leituras_do_lote(sessao, lote))
+    analise = analisar_lote(leituras, faixa_do_lote(lote))
     return {
         "fruta": fruta.nome,
         "produtor": lote.produtor,

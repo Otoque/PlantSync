@@ -19,10 +19,7 @@ Os nomes seguem o contrato da API (docs/api-contrato.md).
 Nas funcoes, piso = temp_min_c da faixa e teto = temp_max_c da faixa.
 """
 
-# Faixa fisica do sensor: fora dela a leitura e defeito, nao fenomeno.
-# O firmware e o pipeline analitico tambem descartam esses valores.
-TEMP_FISICA_MIN = -40.0
-TEMP_FISICA_MAX = 80.0
+from models.limites import TEMP_FISICA_MAX, TEMP_FISICA_MIN
 
 # Luz acima disso dentro do compartimento lacrado indica porta aberta.
 LUX_PORTA_ABERTA = 300.0

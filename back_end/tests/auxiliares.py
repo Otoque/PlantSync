@@ -108,6 +108,15 @@ def encerrar_lote(cliente, lote, fim=None):
     return cliente.post(endereco, json={"fim": fim})
 
 
+def criar_lote_encerrado_com(cliente, banco, leituras, fim, **mudancas):
+    """Cria o lote, grava as leituras e encerra em 'fim'; exige sucesso."""
+    lote = criar_lote(cliente, **mudancas)
+    gravar_leituras(banco, leituras)
+    resposta = encerrar_lote(cliente, lote, fim=fim)
+    assert resposta.status_code == 200, resposta.text
+    return lote
+
+
 def detalhe_do_lote(cliente, lote):
     """Devolve o JSON de GET /api/lotes/<id>."""
     return cliente.get(f"/api/lotes/{lote['id']}").json()

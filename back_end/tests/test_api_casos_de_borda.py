@@ -1,7 +1,7 @@
 """
-Testes dos problemas achados na revisao de bugs e seguranca do PR #3:
-faixa com Infinity/NaN, conta dos graus-hora, selo com poucos dados, respostas
-estranhas do ThingSpeak, leituras antigas perdidas, datas de lote e CORS.
+Testes de casos de borda da API: faixa com Infinity/NaN, conta dos graus-hora,
+selo com poucos dados, respostas estranhas do ThingSpeak, canal com muitas
+leituras, datas do lote, umidade e luz invalidas e CORS.
 """
 
 import json
@@ -10,8 +10,9 @@ from datetime import datetime, timedelta, timezone
 import config
 from auxiliares import (
     INICIO,
-    criar_lote,
     corpo_de_lote,
+    criar_lote,
+    criar_lote_encerrado_com,
     em,
     encerrar_lote,
     faixa_da_uva,
@@ -39,16 +40,6 @@ def enviar_json_bruto(cliente, metodo, rota, corpo):
     return cliente.request(metodo, rota, content=json.dumps(corpo), headers=cabecalho)
 
 
-def leitura_analise(horas, temperatura):
-    """Leitura no formato usado direto pelo services/analise.py."""
-    return {
-        "data_hora": em(horas),
-        "temperatura_c": temperatura,
-        "umidade_pct": 90.0,
-        "luminosidade_lux": None,
-    }
-
-
 def leituras_a_cada_30_min(horas, temperatura=1.0):
     """Leituras de 30 em 30 minutos, do inicio do lote ate 'horas' depois."""
     leituras = []
@@ -59,15 +50,6 @@ def leituras_a_cada_30_min(horas, temperatura=1.0):
 
 def selo_do_lote(cliente, lote):
     return cliente.get(f"/api/publico/{lote['codigo_publico']}").json()["selo_faixa_segura"]
-
-
-def lote_encerrado_com_leituras(cliente, banco, leituras, fim):
-    """Cria o lote de uva, grava as leituras e encerra em 'fim'."""
-    lote = criar_lote(cliente)
-    gravar_leituras(banco, leituras)
-    resposta = encerrar_lote(cliente, lote, fim=fim)
-    assert resposta.status_code == 200, resposta.text
-    return lote
 
 
 class RespostaFalsa:
@@ -104,12 +86,15 @@ def canal_falso(monkeypatch, entradas):
         chamadas.append(params)
         selecionadas = []
         for entrada in entradas:
+            # As datas sao comparadas como texto: nesse formato (ano, mes, dia,
+            # hora...), a ordem do texto e a ordem do tempo.
             data = entrada["created_at"].replace("T", " ").replace("Z", "")
             if "start" in params and data < params["start"]:
                 continue
             if "end" in params and data > params["end"]:
                 continue
             selecionadas.append(entrada)
+        # [-n:] pega as n ultimas da lista, ou seja, as mais recentes.
         return RespostaFalsa({"feeds": selecionadas[-params["results"]:]})
 
     monkeypatch.setattr(thingspeak.requests, "get", get_falso)
@@ -168,16 +153,16 @@ def test_faixa_fora_do_limite_fisico_do_sensor_devolve_400(cliente):
 
 def test_calor_nao_depende_da_ordem_das_leituras():
     # Excesso de 28 e de 0: media 14 °C durante 10 h = 140 °C·h, nos dois sentidos.
-    esfriando = [leitura_analise(0, 30.0), leitura_analise(10, 1.0)]
-    esquentando = [leitura_analise(0, 1.0), leitura_analise(10, 30.0)]
+    esfriando = [nova_leitura(em(0), 30.0), nova_leitura(em(10), 1.0)]
+    esquentando = [nova_leitura(em(0), 1.0), nova_leitura(em(10), 30.0)]
     assert calcular_graus_hora(esfriando, 0.0, 2.0) == (140.0, 0.0)
     assert calcular_graus_hora(esquentando, 0.0, 2.0) == (140.0, 0.0)
 
 
 def test_frio_nao_depende_da_ordem_das_leituras():
     # Manga: excesso de 5 e de 0 abaixo do piso: media 2,5 °C durante 10 h = 25 °C·h.
-    esquentando = [leitura_analise(0, 5.0), leitura_analise(10, 12.0)]
-    esfriando = [leitura_analise(0, 12.0), leitura_analise(10, 5.0)]
+    esquentando = [nova_leitura(em(0), 5.0), nova_leitura(em(10), 12.0)]
+    esfriando = [nova_leitura(em(0), 12.0), nova_leitura(em(10), 5.0)]
     assert calcular_graus_hora(esquentando, 10.0, 13.0) == (0.0, 25.0)
     assert calcular_graus_hora(esfriando, 10.0, 13.0) == (0.0, 25.0)
 
@@ -194,7 +179,7 @@ def test_lote_que_esfria_de_30_para_1_grau_nao_fica_verde(cliente, banco):
 
 def test_uma_leitura_so_de_40_graus_nao_ganha_selo(cliente, banco):
     leituras = [nova_leitura(em(0), 40.0)]
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T09:05:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T09:05:00Z")
     assert selo_do_lote(cliente, lote) is False
 
 
@@ -202,7 +187,7 @@ def test_nove_leituras_nao_bastam_para_o_selo(cliente, banco):
     leituras = []
     for minuto in range(0, 9):
         leituras.append(nova_leitura(em(0, minuto), 1.0))
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T09:08:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T09:08:00Z")
     assert selo_do_lote(cliente, lote) is False
 
 
@@ -210,13 +195,13 @@ def test_dez_leituras_sem_buraco_ganham_o_selo(cliente, banco):
     leituras = []
     for minuto in range(0, 10):
         leituras.append(nova_leitura(em(0, minuto), 1.0))
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T09:09:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T09:09:00Z")
     assert selo_do_lote(cliente, lote) is True
 
 
 def test_leituras_de_30_em_30_minutos_ganham_o_selo(cliente, banco):
     leituras = leituras_a_cada_30_min(10)
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T19:00:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T19:00:00Z")
     assert selo_do_lote(cliente, lote) is True
 
 
@@ -224,21 +209,21 @@ def test_buraco_no_meio_da_viagem_tira_o_selo(cliente, banco):
     # Tira a leitura das 5 h: buraco de 1 h entre 4h30 e 5h30.
     leituras = leituras_a_cada_30_min(10)
     del leituras[10]
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T19:00:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T19:00:00Z")
     assert selo_do_lote(cliente, lote) is False
 
 
 def test_buraco_no_fim_da_viagem_tira_o_selo(cliente, banco):
     # Leituras so nas primeiras 5 h de uma viagem de 10 h.
     leituras = leituras_a_cada_30_min(5)
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T19:00:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T19:00:00Z")
     assert selo_do_lote(cliente, lote) is False
 
 
 def test_buraco_no_comeco_da_viagem_tira_o_selo(cliente, banco):
     # Primeira leitura so 1 h depois do inicio do lote.
     leituras = leituras_a_cada_30_min(10)[2:]
-    lote = lote_encerrado_com_leituras(cliente, banco, leituras, "2026-10-24T19:00:00Z")
+    lote = criar_lote_encerrado_com(cliente, banco, leituras, "2026-10-24T19:00:00Z")
     assert selo_do_lote(cliente, lote) is False
 
 
@@ -261,7 +246,7 @@ def test_selo_aparece_quando_as_leituras_atrasadas_chegam(cliente, monkeypatch):
 
 def test_corpo_que_nao_e_objeto_devolve_502(cliente, monkeypatch):
     # O ThingSpeak responde -1 quando a chave do canal esta errada.
-    for corpo in [-1, [], "erro", None]:
+    for corpo in [-1, [], "erro", None, {"feeds": None}, {"feeds": "erro"}]:
         thingspeak_responde(monkeypatch, corpo)
         resposta = cliente.post("/api/sincronizar")
         assert resposta.status_code == 502, corpo
@@ -287,6 +272,15 @@ def test_entrada_sem_data_ou_sem_entry_id_devolve_502(cliente, monkeypatch):
         resposta = cliente.post("/api/sincronizar")
         assert resposta.status_code == 502, entrada
         assert resposta.json() == MENSAGEM_THINGSPEAK
+
+
+def test_campo_que_nao_e_numero_vira_nulo_em_vez_de_erro(cliente, monkeypatch):
+    # Temperatura invalida descarta a leitura; o servico nao pode quebrar.
+    entrada = {"entry_id": 1, "created_at": "2026-10-24T09:00:00Z", "field1": []}
+    thingspeak_responde(monkeypatch, {"feeds": [entrada]})
+    resposta = cliente.post("/api/sincronizar")
+    assert resposta.status_code == 200
+    assert resposta.json()["descartadas"] == 1
 
 
 # ---------- 4. leituras antigas nao se perdem ----------

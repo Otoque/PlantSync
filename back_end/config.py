@@ -16,8 +16,9 @@ def separar_origens(texto):
     """Transforma "a, b," em ["a", "b"]: tira espacos e itens vazios."""
     origens = []
     for origem in texto.split(","):
-        if origem.strip():
-            origens.append(origem.strip())
+        origem = origem.strip()
+        if origem:
+            origens.append(origem)
     return origens
 
 
