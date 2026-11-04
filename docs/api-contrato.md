@@ -102,7 +102,7 @@ banco é recriado na próxima execução.
   variáveis de ambiente `PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`, lidas quando o servidor
   liga. Não existe senha padrão: sem as duas, a API sobe, ninguém entra e o log avisa. Se
   elas mudarem, o usuário antigo e as sessões abertas deixam de valer na próxima
-  inicialização. A senha é guardada só como hash com sal (scrypt), e o token de sessão, só
+  inicialização. A senha é guardada só como hash com sal (scrypt), e o token de acesso, só
   como hash. O token vale 8 h. Ele não é um JWT: é um texto aleatório conferido no banco.
 - **Lote**: uma carga de fruta levada de caminhão de uma origem (packing house) até um
   destino: um porto, para exportação, ou o mercado interno (Ceasa, atacado). Tem início
