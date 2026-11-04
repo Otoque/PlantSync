@@ -36,6 +36,10 @@ CANAL_THINGSPEAK = int(os.getenv("CANAL_THINGSPEAK", "3493443"))
 # So e necessaria se o canal deixar de ser publico.
 CHAVE_LEITURA_THINGSPEAK = os.getenv("CHAVE_LEITURA_THINGSPEAK")
 
+# Unico usuario do sistema; nao ha senha padrao. Sem as duas, ninguem consegue entrar.
+PLANTSYNC_USUARIO = os.getenv("PLANTSYNC_USUARIO")
+PLANTSYNC_SENHA = os.getenv("PLANTSYNC_SENHA")
+
 # Enderecos do painel web que podem chamar a API pelo navegador.
 CORS_ORIGENS = separar_origens(os.getenv(
     "CORS_ORIGENS",

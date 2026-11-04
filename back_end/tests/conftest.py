@@ -11,7 +11,21 @@ from sqlalchemy.pool import StaticPool
 
 from app import app
 from models.banco import Base, abrir_sessao
+from models.tabelas import Usuario
+from services.autenticacao import criar_token_de_acesso
 from services.frutas import cadastrar_frutas_iniciais
+
+
+def token_de_teste(banco):
+    """
+    Cria um token direto no banco, sem passar pelo POST /api/login: o hash da
+    senha e lento de proposito e deixaria cada um dos testes bem mais demorado.
+    """
+    with banco() as sessao:
+        usuario = Usuario(nome="teste", sal="nao usado", senha_hash="nao usado")
+        sessao.add(usuario)
+        sessao.commit()
+        return criar_token_de_acesso(sessao, usuario)["token"]
 
 
 @pytest.fixture
@@ -33,7 +47,7 @@ def banco():
 
 @pytest.fixture
 def cliente(banco):
-    """Cliente HTTP da API ligado ao banco de teste."""
+    """Cliente HTTP da API ligado ao banco de teste, ja com login feito."""
 
     # O FastAPI chama esta funcao a cada requisicao para obter uma sessao;
     # ela entrega a sessao no yield e a fecha quando a requisicao termina.
@@ -47,5 +61,14 @@ def cliente(banco):
     # Troca o banco de verdade pelo de teste em todas as rotas.
     app.dependency_overrides[abrir_sessao] = abrir_sessao_teste
     # O teste roda neste yield; depois, as rotas voltam ao banco normal.
-    yield TestClient(app)
+    yield TestClient(app, headers={"Authorization": f"Bearer {token_de_teste(banco)}"})
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def cliente_sem_login(cliente):
+    """
+    Cliente HTTP ligado ao mesmo banco de teste, mas sem token de login.
+    Recebe a fixture cliente so para herdar a troca do banco de verdade pelo de teste.
+    """
+    return TestClient(app)

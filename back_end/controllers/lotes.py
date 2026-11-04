@@ -3,11 +3,13 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from controllers.autenticacao import exigir_login
 from models.banco import abrir_sessao
 from models.entradas import Encerramento, LoteNovo
 from services import lotes
 
-router = APIRouter(prefix="/api/lotes", tags=["lotes"])
+# Todas as rotas deste arquivo exigem login.
+router = APIRouter(prefix="/api/lotes", tags=["lotes"], dependencies=[Depends(exigir_login)])
 
 
 @router.get("")

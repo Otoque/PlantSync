@@ -3,11 +3,13 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from controllers.autenticacao import exigir_login
 from models.banco import abrir_sessao
 from services.alertas import gerar_alertas
 from services.sincronizacao import sincronizar
 
-router = APIRouter(prefix="/api", tags=["monitoramento"])
+# Todas as rotas deste arquivo exigem login.
+router = APIRouter(prefix="/api", tags=["monitoramento"], dependencies=[Depends(exigir_login)])
 
 
 @router.get("/alertas")
