@@ -63,6 +63,7 @@ MENSAGENS_VALIDACAO = {
     "missing": "campo obrigatório",
     "float_parsing": "precisa ser um número",
     "float_type": "precisa ser um número",
+    "finite_number": "precisa ser um número finito",
     "int_parsing": "precisa ser um número inteiro",
     "string_type": "precisa ser um texto",
     "string_too_short": "não pode ficar vazio",

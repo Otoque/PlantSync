@@ -89,6 +89,13 @@ def validar_tipo_destino(tipo_destino):
         raise ErroDeRegra("tipo_destino precisa ser 'porto' ou 'mercado_interno'.")
 
 
+def garantir_inicio_depois_do_ultimo_lote(sessao, inicio):
+    """Se o lote comecasse antes do fim do anterior, herdaria leituras dele."""
+    ultimo = sessao.query(Lote).filter(Lote.fim.is_not(None)).order_by(Lote.fim.desc()).first()
+    if ultimo is not None and inicio <= ultimo.fim:
+        raise ErroDeRegra(f"O início precisa ser depois do fim do lote {ultimo.id}.")
+
+
 def criar_lote(sessao, dados):
     """
     Cadastra um lote. O lote guarda uma copia da faixa segura, para que
@@ -97,6 +104,8 @@ def criar_lote(sessao, dados):
     fruta = fruta_escolhida(sessao, dados.fruta)
     validar_tipo_destino(dados.tipo_destino)
     garantir_que_nao_ha_lote_em_transito(sessao)
+    inicio = inicio_do_lote(dados)
+    garantir_inicio_depois_do_ultimo_lote(sessao, inicio)
 
     faixa = escolher_faixa(fruta, dados.faixa_segura)
     lote = Lote(
@@ -105,7 +114,7 @@ def criar_lote(sessao, dados):
         origem=dados.origem,
         destino=dados.destino,
         tipo_destino=dados.tipo_destino,
-        inicio=inicio_do_lote(dados),
+        inicio=inicio,
         fim=None,
         codigo_publico=gerar_codigo_publico(),
         token_laudo=gerar_token_laudo(),
@@ -128,6 +137,8 @@ def registrar_fim_do_lote(sessao, lote, fim):
         fim = agora_utc()
     else:
         fim = para_utc(fim)
+    if fim > agora_utc():
+        raise ErroDeRegra("O fim não pode estar no futuro.")
     if fim < lote.inicio:
         raise ErroDeRegra("O fim não pode ser anterior ao início do lote.")
 

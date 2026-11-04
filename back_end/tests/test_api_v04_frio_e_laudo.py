@@ -10,6 +10,7 @@ auxiliares.py; as que so servem a este arquivo ficam logo abaixo.
 import pytest
 
 from auxiliares import (
+    FORMATO_DATA,
     alertas_do_tipo,
     analise_do_lote,
     buscar_fruta,
@@ -55,6 +56,22 @@ def leituras_nas_horas(temperaturas):
 def criar_lote_de_manga(cliente, **mudancas):
     """Cria um lote de manga (faixa 10 a 13 °C); exige status 201."""
     return criar_lote(cliente, fruta="manga", **mudancas)
+
+
+def criar_lote_encerrado_sem_buracos(cliente, banco, temperaturas, fruta="manga"):
+    """
+    Uma leitura a cada 10 min desde o inicio do lote, encerrando na ultima.
+    Assim o selo so depende do nivel de risco, nao da falta de dados.
+    """
+    lote = criar_lote(cliente, fruta=fruta)
+    leituras = []
+    for numero, temperatura in enumerate(temperaturas):
+        leituras.append(nova_leitura(em(0, numero * 10), temperatura))
+    gravar_leituras(banco, leituras)
+    fim = em(0, (len(temperaturas) - 1) * 10).strftime(FORMATO_DATA)
+    resposta = encerrar_lote(cliente, lote, fim=fim)
+    assert resposta.status_code == 200, resposta.text
+    return lote
 
 
 def criar_lote_encerrado(cliente, banco, temperaturas, fruta="manga"):
@@ -127,11 +144,12 @@ def test_leitura_exatamente_no_piso_ou_no_teto_nao_soma_nada(cliente, banco, tem
 
 def test_lote_com_frio_e_calor_soma_cada_lado_separado(cliente, banco):
     lote = criar_lote_de_manga(cliente)
-    # 72 h a 8,5 °C (108 °C·h abaixo), volta para 12 °C, 9 h a 15 °C (2 × 9 = 18 °C·h acima)
+    # Frio: 1,5 × 72 h = 108, mais a volta para 12 °C (media 0,75 por 1 h) = 108,75 °C·h.
+    # Calor: 12 -> 15 °C (media 1 por 1 h) + 2 × 8 h + 15 -> 12 °C (media 1 por 1 h) = 18 °C·h.
     temperaturas = MANGA_FRIO_E_DEPOIS_CALOR
     gravar_leituras(banco, leituras_nas_horas(temperaturas))
     analise = analise_do_lote(cliente, lote)
-    assert analise["graus_hora_abaixo"] == 108
+    assert analise["graus_hora_abaixo"] == 108.75
     assert analise["graus_hora_acima"] == 18
     assert analise["nivel_abaixo"] == "VERMELHO"
     assert analise["nivel_acima"] == "AMARELO"
@@ -370,7 +388,8 @@ def test_codigo_publico_nao_e_o_id_do_lote_nem_o_token(cliente):
 def test_dois_lotes_tem_codigos_e_tokens_diferentes(cliente):
     primeiro = criar_lote(cliente)
     encerrar_lote(cliente, primeiro)
-    segundo = criar_lote(cliente)
+    # Sem inicio vale o horario atual, depois do fim do primeiro lote.
+    segundo = criar_lote(cliente, inicio=None)
     detalhe_primeiro = detalhe_do_lote(cliente, primeiro)
     detalhe_segundo = detalhe_do_lote(cliente, segundo)
     assert detalhe_primeiro["codigo_publico"] != detalhe_segundo["codigo_publico"]
@@ -388,7 +407,7 @@ def test_codigo_e_token_do_lote_nao_mudam_entre_consultas(cliente):
 # ---------- GET /api/publico/{codigo} ----------
 
 def test_visao_publica_tem_exatamente_fruta_produtor_origem_e_selo(cliente, banco):
-    lote = criar_lote_encerrado(cliente, banco, [12.0] * 11)
+    lote = criar_lote_encerrado_sem_buracos(cliente, banco, [12.0] * 11)
     resposta = visao_publica(cliente, lote)
     assert resposta.status_code == 200
     assert resposta.json() == {
@@ -434,15 +453,15 @@ def test_visao_publica_nao_abre_com_o_id_do_lote(cliente):
     [
         ("manga", [12.0] * 11),
         ("uva", [1.0] * 11),
-        ("manga", [8.5] * 4),   # frio marginal: 1,5 × 3 = 4,5 °C·h, ainda VERDE
-        ("uva", [4.0] * 3),     # calor marginal: 2 × 2 = 4 °C·h, ainda VERDE
+        ("manga", [8.5] * 10),  # frio marginal: 1,5 × 1,5 h = 2,25 °C·h, ainda VERDE
+        ("uva", [4.0] * 10),    # calor marginal: 2 × 1,5 h = 3 °C·h, ainda VERDE
     ],
     ids=["manga_na_faixa", "uva_na_faixa", "desvio_marginal_de_frio", "desvio_marginal_de_calor"],
 )
 def test_selo_e_verdadeiro_quando_encerrado_com_leituras_e_verde_nos_dois_lados(
     cliente, banco, fruta, temperaturas
 ):
-    lote = criar_lote_encerrado(cliente, banco, temperaturas, fruta=fruta)
+    lote = criar_lote_encerrado_sem_buracos(cliente, banco, temperaturas, fruta=fruta)
     analise = analise_do_lote(cliente, lote)
     assert analise["nivel_acima"] == "VERDE"
     assert analise["nivel_abaixo"] == "VERDE"
@@ -465,12 +484,13 @@ def test_selo_e_falso_para_lote_encerrado_sem_leituras(cliente, banco):
 @pytest.mark.parametrize(
     "fruta, temperaturas, campo_do_nivel, nivel",
     [
-        ("manga", [8.5] * 5, "nivel_abaixo", "AMARELO"),      # 1,5 × 4 = 6 °C·h
-        ("manga", [8.5] * 15, "nivel_abaixo", "LARANJA"),     # 1,5 × 14 = 21 °C·h
-        ("manga", [8.5] * 73, "nivel_abaixo", "VERMELHO"),    # 1,5 × 72 = 108 °C·h
-        ("uva", [4.0] * 4, "nivel_acima", "AMARELO"),         # 2 × 3 = 6 °C·h
-        ("uva", [4.0] * 13, "nivel_acima", "LARANJA"),        # 2 × 12 = 24 °C·h
-        ("uva", [4.0] * 30, "nivel_acima", "VERMELHO"),       # 2 × 29 = 58 °C·h
+        # Uma leitura a cada 10 min: 6 leituras a mais por hora de viagem.
+        ("manga", [8.5] * 31, "nivel_abaixo", "AMARELO"),     # 1,5 × 5 h = 7,5 °C·h
+        ("manga", [8.5] * 85, "nivel_abaixo", "LARANJA"),     # 1,5 × 14 h = 21 °C·h
+        ("manga", [8.5] * 433, "nivel_abaixo", "VERMELHO"),   # 1,5 × 72 h = 108 °C·h
+        ("uva", [4.0] * 19, "nivel_acima", "AMARELO"),        # 2 × 3 h = 6 °C·h
+        ("uva", [4.0] * 73, "nivel_acima", "LARANJA"),        # 2 × 12 h = 24 °C·h
+        ("uva", [4.0] * 175, "nivel_acima", "VERMELHO"),      # 2 × 29 h = 58 °C·h
     ],
     ids=[
         "frio_amarelo",
@@ -484,7 +504,7 @@ def test_selo_e_falso_para_lote_encerrado_sem_leituras(cliente, banco):
 def test_selo_e_falso_para_lote_encerrado_com_um_lado_amarelo_ou_pior(
     cliente, banco, fruta, temperaturas, campo_do_nivel, nivel
 ):
-    lote = criar_lote_encerrado(cliente, banco, temperaturas, fruta=fruta)
+    lote = criar_lote_encerrado_sem_buracos(cliente, banco, temperaturas, fruta=fruta)
     assert analise_do_lote(cliente, lote)[campo_do_nivel] == nivel
     assert visao_publica(cliente, lote).json()["selo_faixa_segura"] is False
 
@@ -572,7 +592,7 @@ def test_codigo_publico_de_um_lote_nao_abre_como_token_do_laudo(cliente):
 
 def test_token_de_um_lote_nao_abre_o_laudo_de_outro(cliente, banco):
     primeiro = criar_lote_encerrado(cliente, banco, [12.0, 8.0, 12.0])
-    segundo = criar_lote(cliente, produtor="Outro Produtor")
+    segundo = criar_lote(cliente, produtor="Outro Produtor", inicio=None)
     token_do_segundo = detalhe_do_lote(cliente, segundo)["token_laudo"]
     laudo = cliente.get(f"/api/laudos/{token_do_segundo}").json()
     assert laudo["id"] == segundo["id"]

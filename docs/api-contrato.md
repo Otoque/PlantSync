@@ -1,7 +1,23 @@
 # Contrato da API do PlantSync
 
-Versão 0.5 (rascunho, 03/11/2026). Este documento descreve o que o backend entrega ao
+Versão 0.6 (rascunho, 04/11/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
+
+## Mudanças da v0.6 (em relação à v0.5)
+
+Correções da revisão de bugs e segurança. Os formatos de JSON não mudam, e o banco da
+v0.5 continua valendo.
+
+1. **Graus-hora pela média das duas pontas.** Antes, só a leitura que fechava o intervalo
+   contava, e esfriar de 30 para 1 °C somava zero. Os valores podem mudar nos trechos em
+   que a temperatura cruza o limite.
+2. **Selo mais exigente:** agora pede ao menos 10 leituras e nenhum buraco maior que
+   30 min na viagem.
+3. **Faixa segura validada:** temperatura de -40 a 80 °C e sem `Infinity` ou `NaN`.
+4. **Datas do lote:** `inicio` precisa ser depois do fim do último lote, e `fim` não pode
+   estar no futuro.
+5. **Sincronização:** traz todas as leituras, sem o limite de 8000 por consulta. Resposta
+   inválida do ThingSpeak vira `502`, e umidade ou luz inválidas viram `null`.
 
 ## Mudanças da v0.5 (em relação à v0.4)
 
@@ -62,7 +78,7 @@ banco é recriado na próxima execução.
 | 201 | Lote criado. |
 | 400 | Dado inválido no corpo da requisição. A mensagem começa pelo campo, ex.: `"fruta: campo obrigatório"`. |
 | 404 | Lote, fruta, código, token ou rota inexistente. |
-| 502 | O ThingSpeak não respondeu ou respondeu com erro. |
+| 502 | O ThingSpeak não respondeu, respondeu com erro ou mandou dados fora do formato. |
 
 ## Conceitos
 
@@ -79,7 +95,8 @@ banco é recriado na próxima execução.
   leituras depois, em lote, com o horário original, elas entram no lote certo, mesmo
   que cheguem fora de ordem ou depois de o lote ser encerrado. Ainda não está decidido
   onde fica o sensor (dentro da carga, gravando para enviar depois, ou com a placa do
-  lado de fora); o backend funciona nos dois casos.
+  lado de fora); o backend funciona nos dois casos. Cada sincronização busca desde a
+  última leitura gravada menos 7 dias, para alcançar as que chegam fora de ordem.
 - **Faixa segura**: limites de temperatura e umidade de uma fruta, com a fonte. Fica
   cadastrada no banco e pode ser editada pela API; não há valor fixo no código.
 - **Cópia da faixa no lote**: ao criar um lote, a faixa da fruta é copiada para ele.
@@ -91,6 +108,12 @@ banco é recriado na próxima execução.
     durante 3 h somam 6 °C·h.
   - `graus_hora_abaixo`: frio abaixo do piso (`temp_min_c`). Ex.: manga (piso 10 °C) a
     8,5 °C durante 72 h soma 1,5 × 72 = 108 °C·h.
+
+  Em cada intervalo entre duas leituras vale a média do excesso nas duas pontas. Ex.:
+  uva (teto 2 °C) esfriando de 30 para 1 °C em 10 h: excesso de 28 e de 0, média 14,
+  14 × 10 = 140 °C·h, igual a esquentar de 1 para 30 °C. É uma aproximação: supõe que a
+  temperatura variou em linha reta entre as leituras. Uma leitura sozinha não forma
+  intervalo e soma 0.
 
   Leitura exatamente no piso ou no teto soma 0. Os dois lados importam: na manga, o frio
   abaixo do piso causa corte negro, que pode levar à rejeição da carga (MOVIMENTO
@@ -206,8 +229,9 @@ Corpo (todos os campos obrigatórios, menos `risco_no_frio`):
 
 - `id`: identificador curto, só letras minúsculas sem acento, números, `-` ou `_`.
   Não pode repetir um que já exista.
-- `temp_min_c` menor que `temp_max_c`; `umidade_min_pct` menor que
-  `umidade_max_pct`, as duas entre 0 e 100.
+- `temp_min_c` menor que `temp_max_c`, as duas entre -40 e 80 (limites físicos que a
+  análise aceita); `umidade_min_pct` menor que `umidade_max_pct`, as duas entre 0 e 100.
+- Os quatro limites precisam ser números finitos: `Infinity` e `NaN` devolvem `400`.
 - `risco_no_frio`: opcional. Nome do dano que o frio abaixo do piso causa na fruta,
   usado no alerta ("risco de corte negro"). Sem ele, o alerta de frio só diz a ação.
 
@@ -289,7 +313,9 @@ Corpo:
 - `tipo_destino`: obrigatório, `porto` (exportação) ou `mercado_interno` (Ceasa,
   atacado). Outro valor devolve `400`:
   `{ "erro": "tipo_destino precisa ser 'porto' ou 'mercado_interno'." }`
-- `inicio`: opcional. Se não vier, vale o horário atual.
+- `inicio`: opcional. Se não vier, vale o horário atual. Precisa ser depois do fim do
+  último lote; senão o lote novo herdaria leituras do anterior. Caso contrário, `400`:
+  `{ "erro": "O início precisa ser depois do fim do lote 3." }`
 - `faixa_segura`: opcional, para um lote com faixa própria (ex.: cultivar mais
   sensível). Mesmos quatro campos de `GET /api/frutas`, com as mesmas regras de
   validação. Se não vier, o lote copia a faixa atual da fruta.
@@ -397,8 +423,8 @@ Marca a chegada ao destino. Corpo opcional:
 ```
 
 Sem corpo, `fim` vale o horário atual. Resposta `200`: o lote no formato de
-`GET /api/lotes`. Resposta `400` se o lote já estiver encerrado ou se `fim` for anterior
-ao `inicio`.
+`GET /api/lotes`. Resposta `400` se o lote já estiver encerrado, se `fim` for anterior
+ao `inicio` ou se `fim` estiver no futuro.
 
 ---
 
@@ -486,7 +512,9 @@ em UTC.
 
 Busca no ThingSpeak as leituras do canal configurado e grava no banco as que ainda não
 existem (a chave é o `entry_id` do ThingSpeak, então repetir a chamada não duplica nada).
-Sem corpo.
+Sem corpo. Com o banco vazio busca tudo; depois, desde a última leitura gravada menos
+7 dias. Como cada consulta ao ThingSpeak traz no máximo 8000 leituras (cerca de 44 h a
+uma leitura a cada 20 s), o backend faz quantas consultas forem precisas.
 
 ```json
 {
@@ -497,10 +525,13 @@ Sem corpo.
 }
 ```
 
-- `recebidas`: quantas leituras o ThingSpeak devolveu.
+- `recebidas`: quantas leituras o ThingSpeak devolveu na janela buscada, incluindo as que
+  já estavam gravadas.
 - `novas`: quantas foram gravadas agora.
 - `descartadas`: quantas a auditoria rejeitou (sem temperatura ou com valor
   fisicamente impossível).
+- Umidade fora de 0 a 100 % ou luz fora de 0 a 200 000 lux (inclusive infinito e `NaN`) é
+  gravada como `null`, sem descartar a leitura.
 
 Resposta `502` se o ThingSpeak estiver fora do ar.
 
@@ -518,11 +549,21 @@ e o selo. **Nunca** traz curva, temperaturas, graus-hora ou nível de risco.
 }
 ```
 
-`selo_faixa_segura` é `true` só quando as três condições valem juntas:
+`selo_faixa_segura` é `true` só quando as quatro condições valem juntas:
 
 1. o lote já foi encerrado (chegou ao destino);
-2. o lote tem leituras;
-3. `nivel_acima` e `nivel_abaixo` são `VERDE`.
+2. o lote tem ao menos 10 leituras válidas;
+3. não há buraco maior que 30 min sem leitura, contando também do `inicio` até a primeira
+   leitura e da última até o `fim`;
+4. `nivel_acima` e `nivel_abaixo` são `VERDE`.
+
+> Os valores 10 e 30 foram escolhidos pela equipe e ainda precisam ser **validados com um
+> produtor**: 10 leituras são cerca de 3 min de envio normal (uma a cada 20 s), e 30 min
+> sem dados já escondem uma parada com a porta aberta. Eles só afetam o selo, não o nível
+> de risco.
+
+O selo é calculado a cada consulta: leituras atrasadas contam assim que chegam, então um
+lote sem selo pode ganhá-lo depois de sincronizar.
 
 Em qualquer outro caso é `false`. O painel mostra o selo "Transportado dentro da faixa
 segura" só quando é `true`. `VERDE` aceita desvio marginal (menos de 5 °C·h), conforme a
@@ -589,9 +630,16 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
   (ver `POST /api/lotes`). Para acompanhar cargas simultâneas, cada lote precisaria do
   seu próprio sensor e canal, e o lote passaria a guardar o número do canal.
 
-- **Token sem login.** Como o login (RF07) ficou fora do escopo, qualquer um com acesso
-  ao painel interno vê o `token_laudo` em `GET /api/lotes/{id}`. Não há rota para trocar
-  um token vazado.
+- **Rotas internas abertas, com id sequencial (decisão pendente do Pedro).** Como o login
+  (RF07) ficou fora do escopo, `GET /api/lotes`, `GET /api/lotes/{id}` e
+  `GET /api/lotes/{id}/leituras` não pedem autenticação. Quem alcança a API consegue
+  percorrer os ids (1, 2, 3...) e ler a curva e o `token_laudo` de todos os lotes, o que
+  anula o segredo do link enquanto a API estiver exposta. Por enquanto, a API deve rodar só
+  em rede de confiança. Não há rota para trocar um token vazado.
+- **Leitura com mais de 7 dias de atraso.** Se já houver leitura mais nova gravada, uma
+  leitura medida mais de 7 dias antes dela não é mais buscada.
+- **Cobertura mínima do selo.** Um lote muito curto pode ganhar o selo mesmo fora da faixa,
+  se ficar abaixo de 5 °C·h: 10 leituras em 3 min a 40 °C somam menos que isso.
 - **Banco sem migração.** Mudanças nas tabelas exigem apagar o `plantsync.db` local; é
   aceitável num protótipo, mas um sistema em produção precisaria de migrações.
 

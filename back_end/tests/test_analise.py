@@ -39,7 +39,7 @@ def test_graus_hora_zero_quando_tudo_dentro_da_faixa():
 
 def test_graus_hora_soma_excesso_vezes_tempo():
     # 2 graus acima do limite durante 3 horas = 6 graus-hora
-    leituras = [leitura(0, 2.0), leitura(1, 4.0), leitura(2, 4.0), leitura(3, 4.0)]
+    leituras = [leitura(0, 4.0), leitura(1, 4.0), leitura(2, 4.0), leitura(3, 4.0)]
     assert calcular_graus_hora(leituras, 0.0, 2.0) == (6.0, 0.0)
 
 
@@ -127,9 +127,10 @@ def test_leitura_exatamente_no_piso_ou_no_teto_soma_zero():
 
 
 def test_calor_e_frio_sao_somados_separados():
-    # 2 graus acima por 3 h = 6 (calor); 1 grau abaixo por 4 h = 4 (frio)
+    # Calor: excesso 0, 2 e 0 -> media 1 por 3 h + media 1 por 4 h = 7
+    # Frio: excesso 0, 0 e 1 -> media 0 por 3 h + media 0,5 por 4 h = 2
     leituras = [leitura(0, 11.0), leitura(3, 15.0), leitura(7, 9.0)]
-    assert calcular_graus_hora(leituras, 10.0, 13.0) == (6.0, 4.0)
+    assert calcular_graus_hora(leituras, 10.0, 13.0) == (7.0, 2.0)
 
 
 def test_nivel_do_lote_e_o_pior_dos_dois_lados():
