@@ -35,11 +35,14 @@ def ids_ja_gravados(sessao):
     return ids
 
 
+def limite_do_relogio():
+    return agora_utc() + FOLGA_DO_RELOGIO
+
+
 def inicio_da_busca(sessao):
     """De onde buscar no ThingSpeak. Banco vazio (None): busca tudo."""
     # Ignora leitura com horario no futuro: a busca pularia para depois das reais.
-    limite = agora_utc() + FOLGA_DO_RELOGIO
-    consulta = sessao.query(Leitura).filter(Leitura.data_hora <= limite)
+    consulta = sessao.query(Leitura).filter(Leitura.data_hora <= limite_do_relogio())
     ultima = consulta.order_by(Leitura.data_hora.desc()).first()
     if ultima is None:
         return None
@@ -75,7 +78,7 @@ def sincronizar(sessao):
         chave_leitura=CHAVE_LEITURA_THINGSPEAK,
     )
     gravados = ids_ja_gravados(sessao)
-    limite = agora_utc() + FOLGA_DO_RELOGIO
+    limite = limite_do_relogio()
 
     novas = 0
     descartadas = 0
