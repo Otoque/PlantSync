@@ -100,7 +100,8 @@ banco é recriado na próxima execução.
 
 - **Login**: há um único usuário, sem perfis e sem cadastro pela API. Ele vem das
   variáveis de ambiente `PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`, lidas quando o servidor
-  liga. Não existe senha padrão: sem as duas, a API sobe, ninguém entra e o log avisa. Se
+  liga. Não existe senha padrão: sem as duas, ou com senha de menos de 12 caracteres
+  (sem contar espaços nas pontas), a API sobe, ninguém entra e o log avisa. Se
   elas mudarem, o usuário antigo e as sessões abertas deixam de valer na próxima
   inicialização. A senha é guardada só como hash com sal (scrypt), e o token de acesso, só
   como hash. O token vale 8 h. Ele não é um JWT: é um texto aleatório conferido no banco.

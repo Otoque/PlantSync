@@ -326,6 +326,41 @@ def test_sem_variaveis_ninguem_entra_e_o_log_avisa(cliente_sem_login, banco, cap
     assert fazer_login(cliente_sem_login).status_code == 401
 
 
+def test_senha_curta_ou_so_de_espacos_e_recusada_e_o_log_avisa(cliente_sem_login, banco, caplog):
+    caplog.set_level(logging.WARNING)
+    for senha_ruim in ["a", "onze letras", " " * 12, "  onze letras  "]:
+        caplog.clear()
+        ligar_servidor_com_usuario(banco, "operador", senha_ruim)
+
+        assert contar(banco, Usuario) == 0, senha_ruim
+        assert fazer_login(cliente_sem_login, senha=senha_ruim).status_code == 401
+        assert "12 caracteres" in caplog.text
+
+
+def test_aviso_de_senha_curta_nao_mostra_a_senha(banco, caplog):
+    caplog.set_level(logging.WARNING)
+    ligar_servidor_com_usuario(banco, "operador", "abc-xyz")
+    assert "12 caracteres" in caplog.text
+    assert "abc-xyz" not in caplog.text
+
+
+def test_senha_com_12_caracteres_e_aceita(cliente_sem_login, banco, caplog):
+    caplog.set_level(logging.WARNING)
+    ligar_servidor_com_usuario(banco, "operador", "doze letras!")
+    assert fazer_login(cliente_sem_login, senha="doze letras!").status_code == 200
+    assert caplog.text == ""
+
+
+def test_trocar_para_senha_curta_derruba_o_usuario_e_os_tokens(cliente_sem_login, banco):
+    ligar_servidor_com_usuario(banco, "operador", SENHA)
+    token = fazer_login(cliente_sem_login).json()["token"]
+
+    ligar_servidor_com_usuario(banco, "operador", "curta")
+
+    assert fazer_login(cliente_sem_login).status_code == 401
+    assert cliente_sem_login.get("/api/lotes", headers=cabecalho_de(token)).status_code == 401
+
+
 def test_tirar_as_variaveis_tira_o_usuario_e_as_sessoes(cliente_sem_login, banco):
     ligar_servidor_com_usuario(banco, "operador", SENHA)
     token = fazer_login(cliente_sem_login).json()["token"]
