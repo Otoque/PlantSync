@@ -24,12 +24,19 @@ FAIXA = "/api/dispositivo/faixa"
 
 # ---------- funcoes auxiliares deste arquivo ----------
 
-def com_chave(chave=CHAVE):
+def cabecalho_da_chave(chave=CHAVE):
+    """Cabecalho que a placa envia."""
     return {"X-Chave-Dispositivo": chave}
+
+
+def faixa_da_placa(placa, chave=CHAVE):
+    """Busca a faixa como a placa faz. 'placa' e o cliente_sem_login."""
+    return placa.get(FAIXA, headers=cabecalho_da_chave(chave))
 
 
 def configurar_chave(monkeypatch, chave):
     """Faz de conta que o servidor ligou com esta PLANTSYNC_CHAVE_DISPOSITIVO."""
+    # Troca no controller porque ele ja importou o valor de config.py ao carregar.
     monkeypatch.setattr(rotas_do_dispositivo, "PLANTSYNC_CHAVE_DISPOSITIVO", chave)
 
 
@@ -38,13 +45,15 @@ def com_chave_configurada(monkeypatch):
     configurar_chave(monkeypatch, CHAVE)
 
 
+# Nos testes abaixo, cliente (com login) so cria os lotes; cliente_sem_login faz o papel da placa.
+
 # ---------- resposta ----------
 
 def test_devolve_so_a_faixa_do_lote_em_transito(
     cliente, cliente_sem_login, com_chave_configurada
 ):
     lote = criar_lote(cliente)
-    resposta = cliente_sem_login.get(FAIXA, headers=com_chave())
+    resposta = faixa_da_placa(cliente_sem_login)
     assert resposta.status_code == 200
     assert resposta.json() == {
         "lote_id": lote["id"],
@@ -61,19 +70,19 @@ def test_usa_a_faixa_copiada_no_lote_e_nao_a_atual_da_fruta(
 ):
     criar_lote(cliente)
     editar_fruta(cliente, "uva", temp_min_c=5.0, temp_max_c=9.0)
-    resposta = cliente_sem_login.get(FAIXA, headers=com_chave())
+    resposta = faixa_da_placa(cliente_sem_login)
     assert resposta.json()["temp_max_c"] == 2.0
 
 
 def test_usa_a_faixa_propria_do_lote(cliente, cliente_sem_login, com_chave_configurada):
     corpo = corpo_de_lote(faixa_segura=faixa_da_uva(temp_max_c=3.5))
     assert cliente.post("/api/lotes", json=corpo).status_code == 201
-    resposta = cliente_sem_login.get(FAIXA, headers=com_chave())
+    resposta = faixa_da_placa(cliente_sem_login)
     assert resposta.json()["temp_max_c"] == 3.5
 
 
 def test_sem_lote_em_transito_devolve_404(cliente_sem_login, com_chave_configurada):
-    resposta = cliente_sem_login.get(FAIXA, headers=com_chave())
+    resposta = faixa_da_placa(cliente_sem_login)
     assert resposta.status_code == 404
     assert resposta.json() == {"erro": "Nenhum lote em trânsito."}
 
@@ -83,7 +92,7 @@ def test_lote_encerrado_nao_conta_como_em_transito(
 ):
     lote = criar_lote(cliente)
     encerrar_lote(cliente, lote, fim="2026-10-24T20:00:00Z")
-    assert cliente_sem_login.get(FAIXA, headers=com_chave()).status_code == 404
+    assert faixa_da_placa(cliente_sem_login).status_code == 404
 
 
 # ---------- chave do dispositivo ----------
@@ -96,7 +105,7 @@ def test_sem_chave_da_401(cliente_sem_login, com_chave_configurada):
 
 def test_chave_errada_da_401(cliente_sem_login, com_chave_configurada):
     outra = "x" * len(CHAVE)
-    assert cliente_sem_login.get(FAIXA, headers=com_chave(outra)).status_code == 401
+    assert faixa_da_placa(cliente_sem_login, outra).status_code == 401
 
 
 def test_chave_com_acento_da_401_e_nao_derruba_a_api(cliente_sem_login, com_chave_configurada):
@@ -138,7 +147,7 @@ def test_chave_nao_abre_nenhuma_outra_rota(cliente_sem_login, com_chave_configur
 def test_sem_chave_configurada_da_503_mesmo_com_cabecalho(cliente_sem_login, monkeypatch):
     for chave_ruim in [None, "", "curta", " " * 40, "x" * 31]:
         configurar_chave(monkeypatch, chave_ruim)
-        for cabecalhos in [None, com_chave(), com_chave("curta"), com_chave("x" * 31)]:
+        for cabecalhos in [None, cabecalho_da_chave(), cabecalho_da_chave("x" * 31)]:
             resposta = cliente_sem_login.get(FAIXA, headers=cabecalhos)
             assert resposta.status_code == 503, (chave_ruim, cabecalhos)
             assert resposta.json() == {"erro": "Chave do dispositivo não configurada no servidor."}
@@ -147,7 +156,7 @@ def test_sem_chave_configurada_da_503_mesmo_com_cabecalho(cliente_sem_login, mon
 def test_chave_com_32_caracteres_e_aceita(cliente, cliente_sem_login, monkeypatch):
     configurar_chave(monkeypatch, "x" * 32)
     criar_lote(cliente)
-    assert cliente_sem_login.get(FAIXA, headers=com_chave("x" * 32)).status_code == 200
+    assert faixa_da_placa(cliente_sem_login, "x" * 32).status_code == 200
 
 
 def test_log_avisa_quando_a_chave_falta_ou_e_curta(caplog):
@@ -174,8 +183,8 @@ def test_chave_nao_aparece_em_log_nem_em_resposta(
     errada = "chave-errada-que-tambem-nao-pode-aparecer"
     criar_lote(cliente)
     respostas = [
-        cliente_sem_login.get(FAIXA, headers=com_chave()),
-        cliente_sem_login.get(FAIXA, headers=com_chave(errada)),
+        faixa_da_placa(cliente_sem_login),
+        faixa_da_placa(cliente_sem_login, errada),
         cliente_sem_login.get(FAIXA),
     ]
     for resposta in respostas:

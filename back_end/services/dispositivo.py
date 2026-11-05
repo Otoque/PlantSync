@@ -15,6 +15,7 @@ from services.erros import (
 from services.lotes import faixa_do_lote, lote_em_transito
 
 TAMANHO_MINIMO_DA_CHAVE = 32
+MENSAGEM_CHAVE_INVALIDA = "Chave do dispositivo inválida."
 
 logger = logging.getLogger("plantsync")
 
@@ -41,11 +42,11 @@ def conferir_chave(recebida, configurada):
     if not chave_tem_tamanho_minimo(configurada):
         raise ErroDispositivoNaoConfigurado("Chave do dispositivo não configurada no servidor.")
     if recebida is None:
-        raise ErroChaveDoDispositivo("Chave do dispositivo inválida.")
+        raise ErroChaveDoDispositivo(MENSAGEM_CHAVE_INVALIDA)
     # Em bytes porque compare_digest recusa texto com acento. Ele leva o mesmo
     # tempo mesmo se as chaves diferem logo no comeco.
     if not hmac.compare_digest(recebida.encode("utf-8"), configurada.encode("utf-8")):
-        raise ErroChaveDoDispositivo("Chave do dispositivo inválida.")
+        raise ErroChaveDoDispositivo(MENSAGEM_CHAVE_INVALIDA)
 
 
 def faixa_para_a_placa(sessao):
