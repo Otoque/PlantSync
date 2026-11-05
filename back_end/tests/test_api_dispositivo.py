@@ -153,6 +153,22 @@ def test_sem_chave_configurada_da_503_mesmo_com_cabecalho(cliente_sem_login, mon
             assert resposta.json() == {"erro": "Chave do dispositivo não configurada no servidor."}
 
 
+def test_chave_configurada_com_acento_da_503_e_o_log_avisa(cliente_sem_login, monkeypatch, caplog):
+    # O servidor le o cabecalho como latin-1: uma chave com acento nunca conferiria,
+    # e a placa receberia 401 mesmo com a chave certa, sem ninguem saber o motivo.
+    caplog.set_level(logging.WARNING)
+    chave_com_acento = "chave-com-acento-" + "é" * 20
+    configurar_chave(monkeypatch, chave_com_acento)
+
+    resposta = faixa_da_placa(cliente_sem_login, "x" * 40)
+    assert resposta.status_code == 503
+
+    avisar_se_a_chave_for_invalida(chave_com_acento)
+    assert "PLANTSYNC_CHAVE_DISPOSITIVO" in caplog.text
+    assert "acento" in caplog.text
+    assert chave_com_acento not in caplog.text
+
+
 def test_chave_com_32_caracteres_e_aceita(cliente, cliente_sem_login, monkeypatch):
     configurar_chave(monkeypatch, "x" * 32)
     criar_lote(cliente)

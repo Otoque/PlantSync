@@ -20,26 +20,30 @@ MENSAGEM_CHAVE_INVALIDA = "Chave do dispositivo inválida."
 logger = logging.getLogger("plantsync")
 
 
-def chave_tem_tamanho_minimo(chave):
-    """Uma chave so de espacos nao conta como chave longa."""
-    if not chave:
+def chave_e_valida(chave):
+    """
+    A chave precisa ter o tamanho minimo, sem contar espacos nas pontas, e so
+    caracteres sem acento: o servidor le os cabecalhos como latin-1, entao uma
+    chave com acento nunca conferiria, mesmo com a placa enviando a chave certa.
+    """
+    if not chave or not chave.isascii():
         return False
     return len(chave.strip()) >= TAMANHO_MINIMO_DA_CHAVE
 
 
 def avisar_se_a_chave_for_invalida(chave):
     """Chamada ao ligar o servidor. O aviso nunca mostra a chave."""
-    if not chave_tem_tamanho_minimo(chave):
+    if not chave_e_valida(chave):
         logger.warning(
-            "PLANTSYNC_CHAVE_DISPOSITIVO nao foi definida ou tem menos de %s caracteres: "
-            "GET /api/dispositivo/faixa vai responder 503.",
+            "PLANTSYNC_CHAVE_DISPOSITIVO nao foi definida, tem acento ou tem menos de %s "
+            "caracteres: GET /api/dispositivo/faixa vai responder 503.",
             TAMANHO_MINIMO_DA_CHAVE,
         )
 
 
 def conferir_chave(recebida, configurada):
     """Levanta um erro se o servidor nao tiver chave ou se a recebida nao for igual a ela."""
-    if not chave_tem_tamanho_minimo(configurada):
+    if not chave_e_valida(configurada):
         raise ErroDispositivoNaoConfigurado("Chave do dispositivo não configurada no servidor.")
     if recebida is None:
         raise ErroChaveDoDispositivo(MENSAGEM_CHAVE_INVALIDA)

@@ -725,7 +725,7 @@ Resposta `200`, com a faixa **copiada no lote** e nada além do necessário para
 |---|---|---|
 | `401` | Chave errada ou ausente. | `{ "erro": "Chave do dispositivo inválida." }` |
 | `404` | Nenhum lote em trânsito. | `{ "erro": "Nenhum lote em trânsito." }` |
-| `503` | O servidor está sem a chave, ou com menos de 32 caracteres. O log avisa ao ligar, sem mostrar a chave. | `{ "erro": "Chave do dispositivo não configurada no servidor." }` |
+| `503` | O servidor está sem a chave, ou com ela inválida (menos de 32 caracteres ou com acento). O log avisa ao ligar, sem mostrar a chave. | `{ "erro": "Chave do dispositivo não configurada no servidor." }` |
 
 ---
 
