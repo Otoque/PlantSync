@@ -10,6 +10,9 @@ import pytest
 
 from app import app
 from auxiliares import (
+    ROTAS_ABERTAS,
+    ROTAS_COM_CHAVE,
+    ROTAS_PROTEGIDAS,
     agora_utc,
     criar_lote,
     detalhe_do_lote,
@@ -22,29 +25,6 @@ from services import autenticacao
 SENHA = "senha usada so nos testes"
 MENSAGEM_SEM_LOGIN = {"erro": "Faça login para continuar."}
 MENSAGEM_LOGIN_INVALIDO = {"erro": "Usuário ou senha inválidos."}
-
-# As unicas rotas da API que abrem sem login.
-ROTAS_ABERTAS = [
-    ("POST", "/api/login"),
-    ("GET", "/api/saude"),
-    ("GET", "/api/publico/{codigo}"),
-    ("GET", "/api/laudos/{token}"),
-]
-
-ROTAS_PROTEGIDAS = [
-    ("POST", "/api/logout"),
-    ("GET", "/api/frutas"),
-    ("POST", "/api/frutas"),
-    ("PUT", "/api/frutas/{fruta_id}"),
-    ("GET", "/api/lotes"),
-    ("POST", "/api/lotes"),
-    ("GET", "/api/lotes/{lote_id}"),
-    ("POST", "/api/lotes/{lote_id}/encerrar"),
-    ("GET", "/api/lotes/{lote_id}/leituras"),
-    ("GET", "/api/alertas"),
-    ("POST", "/api/sincronizar"),
-]
-
 
 @pytest.fixture(autouse=True)
 def hash_de_senha_mais_rapido(monkeypatch):
@@ -102,13 +82,13 @@ def contar(banco, tabela):
 # ---------- rotas protegidas ----------
 
 def test_nenhuma_rota_da_api_ficou_fora_das_listas():
-    # A lista vem do proprio app: uma rota nova precisa entrar em uma das duas
-    # listas acima, e assim ninguem esquece de decidir se ela exige login.
+    # A lista vem do proprio app: uma rota nova precisa entrar em uma das listas
+    # de auxiliares.py, e assim ninguem esquece de decidir como ela e protegida.
     rotas_do_app = []
     for caminho, metodos in app.openapi()["paths"].items():
         for metodo in metodos:
             rotas_do_app.append((metodo.upper(), caminho))
-    assert sorted(rotas_do_app) == sorted(ROTAS_ABERTAS + ROTAS_PROTEGIDAS)
+    assert sorted(rotas_do_app) == sorted(ROTAS_ABERTAS + ROTAS_PROTEGIDAS + ROTAS_COM_CHAVE)
 
 
 def test_toda_rota_protegida_da_401_sem_token(cliente_sem_login):

@@ -32,6 +32,33 @@ FAIXA_UVA = {
 
 FORMATO_DATA = "%Y-%m-%dT%H:%M:%SZ"
 
+# As unicas rotas da API que abrem sem login.
+ROTAS_ABERTAS = [
+    ("POST", "/api/login"),
+    ("GET", "/api/saude"),
+    ("GET", "/api/publico/{codigo}"),
+    ("GET", "/api/laudos/{token}"),
+]
+
+ROTAS_PROTEGIDAS = [
+    ("POST", "/api/logout"),
+    ("GET", "/api/frutas"),
+    ("POST", "/api/frutas"),
+    ("PUT", "/api/frutas/{fruta_id}"),
+    ("GET", "/api/lotes"),
+    ("POST", "/api/lotes"),
+    ("GET", "/api/lotes/{lote_id}"),
+    ("POST", "/api/lotes/{lote_id}/encerrar"),
+    ("GET", "/api/lotes/{lote_id}/leituras"),
+    ("GET", "/api/alertas"),
+    ("POST", "/api/sincronizar"),
+]
+
+# Rotas que a placa usa: abrem so com a chave do dispositivo, nunca com o login.
+ROTAS_COM_CHAVE = [
+    ("GET", "/api/dispositivo/faixa"),
+]
+
 
 # ---------- dicionarios de entrada ----------
 

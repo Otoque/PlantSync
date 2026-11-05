@@ -40,6 +40,9 @@ CHAVE_LEITURA_THINGSPEAK = os.getenv("CHAVE_LEITURA_THINGSPEAK")
 PLANTSYNC_USUARIO = os.getenv("PLANTSYNC_USUARIO")
 PLANTSYNC_SENHA = os.getenv("PLANTSYNC_SENHA")
 
+# Chave da placa para buscar a faixa do lote. Sem ela, GET /api/dispositivo/faixa responde 503.
+PLANTSYNC_CHAVE_DISPOSITIVO = os.getenv("PLANTSYNC_CHAVE_DISPOSITIVO")
+
 # Enderecos do painel web que podem chamar a API pelo navegador.
 CORS_ORIGENS = separar_origens(os.getenv(
     "CORS_ORIGENS",

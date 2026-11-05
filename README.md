@@ -154,6 +154,19 @@ Para trocar a senha, mude o `.env` e reinicie o servidor.
 
 Rotas, exemplos de JSON e regras estão em [`docs/api-contrato.md`](docs/api-contrato.md).
 
+**Placa na rede local.** A placa busca a faixa do lote em `GET /api/dispositivo/faixa`, com a
+chave `PLANTSYNC_CHAVE_DISPOSITIVO` no cabeçalho `X-Chave-Dispositivo`. Defina a chave no
+`.env` (ao menos 32 caracteres; o `.env.example` mostra como gerar) e, para a placa alcançar
+a API, suba o servidor ouvindo a rede:
+
+```bash
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+A placa usa o IP do computador na rede (ex.: `http://192.168.0.10:8000`), e o firewall precisa
+liberar a porta 8000. Use isso só na demonstração e numa rede de confiança: sem HTTPS, a chave
+trafega em claro, e o login e os laudos ficam visíveis para toda a rede local.
+
 **Faixas seguras iniciais** (editáveis pela API, `PUT /api/frutas/{id}`):
 
 | Fruta | Temperatura | Umidade relativa | Fonte |
