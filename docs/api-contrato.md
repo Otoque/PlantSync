@@ -1,7 +1,14 @@
 # Contrato da API do PlantSync
 
-Versão 0.7 (rascunho, 04/11/2026). Este documento descreve o que o backend entrega ao
+Versão 0.8 (rascunho, 05/11/2026). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
+
+## Mudanças da v0.8 (em relação à v0.7)
+
+**Faixa do lote para a placa** (decisão de 05/11/2026). A placa fica fora do baú, com o LED
+à vista do motorista, e precisa da faixa do lote em trânsito para avisar na hora. Rota nova:
+`GET /api/dispositivo/faixa`, que abre só com a chave da placa. O painel não muda, e o banco
+da v0.7 continua valendo.
 
 ## Mudanças da v0.7 (em relação à v0.6)
 
@@ -74,7 +81,7 @@ banco é recriado na próxima execução.
   `http://127.0.0.1:5500`. Outras origens entram pela variável `CORS_ORIGENS`
   (lista separada por vírgula). Os cabeçalhos aceitos são `Authorization` e `Content-Type`.
 - Login: toda rota exige `Authorization: Bearer <token>`, menos as quatro marcadas como
-  abertas na tabela de endpoints.
+  abertas na tabela de endpoints e a rota da placa, que usa a própria chave.
 - Datas e horas dos campos JSON em ISO 8601, sempre em UTC com o sufixo `Z`
   (ex.: `2026-10-25T17:30:00Z`). Quem converte para `America/Recife` (UTC−3) é o
   painel. A única exceção é o texto livre do campo `mensagem` dos alertas, que já vem
@@ -94,6 +101,7 @@ banco é recriado na próxima execução.
 | 400 | Dado inválido no corpo da requisição. A mensagem começa pelo campo, ex.: `"fruta: campo obrigatório"`. |
 | 401 | Sem login válido, ou usuário ou senha errados. |
 | 404 | Lote, fruta, código, token ou rota inexistente. |
+| 503 | A API está sem a chave da placa configurada (só na rota da placa). |
 | 502 | O ThingSpeak não respondeu, respondeu com erro ou mandou dados fora do formato. |
 
 ## Conceitos
@@ -116,9 +124,9 @@ banco é recriado na próxima execução.
 - **Leituras atrasadas**: o horário que vale é o da medição (o `created_at` gravado no
   ThingSpeak), não o da chegada ao backend. Se o sensor ficar sem sinal e mandar as
   leituras depois, em lote, com o horário original, elas entram no lote certo, mesmo
-  que cheguem fora de ordem ou depois de o lote ser encerrado. Ainda não está decidido
-  onde fica o sensor (dentro da carga, gravando para enviar depois, ou com a placa do
-  lado de fora); o backend funciona nos dois casos. Cada sincronização busca desde a
+  que cheguem fora de ordem ou depois de o lote ser encerrado. A placa fica fora do baú
+  (decisão de 05/11/2026), mas o sinal pode cair na estrada; o backend funciona com envio
+  ao vivo ou atrasado. Cada sincronização busca desde a
   última leitura gravada menos 7 dias, para alcançar as que chegam fora de ordem.
 - **Faixa segura**: limites de temperatura e umidade de uma fruta, com a fonte. Fica
   cadastrada no banco e pode ser editada pela API; não há valor fixo no código.
@@ -172,7 +180,7 @@ banco é recriado na próxima execução.
 
 ## Endpoints
 
-Todas exigem login, menos as marcadas como **abertas**.
+Todas exigem login, menos as marcadas como **abertas** e a rota da placa.
 
 | Método | Rota | Para que serve |
 |---|---|---|
@@ -191,6 +199,7 @@ Todas exigem login, menos as marcadas como **abertas**.
 | POST | `/api/sincronizar` | Buscar leituras novas no ThingSpeak e gravar no banco. |
 | GET | `/api/publico/{codigo}` | **Aberta.** Visão pública do lote (consumidor, via QR Code). |
 | GET | `/api/laudos/{token}` | **Aberta.** Laudo completo do lote (produtor e importador). |
+| GET | `/api/dispositivo/faixa` | **Só com a chave da placa.** Faixa do lote em trânsito, para o LED. |
 
 ---
 
@@ -692,6 +701,34 @@ Resposta `404` se o token não existir, com a mesma mensagem do código público
 
 ---
 
+### GET `/api/dispositivo/faixa`
+
+Usada pela placa para saber a faixa do lote em trânsito e acender o LED. Exige o cabeçalho
+`X-Chave-Dispositivo`, com o valor da variável `PLANTSYNC_CHAVE_DISPOSITIVO` (ao menos 32
+caracteres). A chave não abre nenhuma outra rota, e o token de login não abre esta. Sem
+lote em trânsito não há faixa para mostrar, e a placa continua com a última que recebeu.
+
+Resposta `200`, com a faixa **copiada no lote** e nada além do necessário para o LED:
+
+```json
+{
+  "lote_id": 3,
+  "fruta": "uva",
+  "temp_min_c": 0.0,
+  "temp_max_c": 2.0,
+  "umidade_min_pct": 85.0,
+  "umidade_max_pct": 95.0
+}
+```
+
+| Código | Quando acontece | Corpo |
+|---|---|---|
+| `401` | Chave errada ou ausente. | `{ "erro": "Chave do dispositivo inválida." }` |
+| `404` | Nenhum lote em trânsito. | `{ "erro": "Nenhum lote em trânsito." }` |
+| `503` | O servidor está sem a chave, ou com menos de 32 caracteres. O log avisa ao ligar, sem mostrar a chave. | `{ "erro": "Chave do dispositivo não configurada no servidor." }` |
+
+---
+
 ## Campos do ThingSpeak usados
 
 Mapeamento do canal 3493443, conforme o `README.md`:
@@ -715,6 +752,11 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
 
 - **Login sem limite de tentativas.** Não há bloqueio depois de várias senhas erradas. O
   hash lento dificulta, mas não impede, testar senhas pela rede: use uma senha forte.
+- **Chave da placa em claro na rede local.** Sem HTTPS, a `X-Chave-Dispositivo` trafega em
+  claro: quem estiver na mesma rede pode copiá-la e ler a faixa do lote em trânsito. É
+  aceitável só na demonstração. Subir a API com `--host 0.0.0.0` também expõe o login e os
+  laudos a toda a rede local, então use uma rede de confiança. Para trocar a chave, mude a
+  variável, reinicie o servidor e grave a nova na placa.
 - **HTTPS fica fora da API.** Localmente a API usa HTTP. Se ela for publicada, é preciso
   HTTPS na frente, senão a senha e os tokens passam às claras pela rede.
 - **Um usuário só, sem perfis.** Todos usam o mesmo login, e não há registro de quem fez o
@@ -734,9 +776,8 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
 
 - Perfis de usuário (Operador Logístico e Gestor de Agronegócio, do RF07) e cadastro de
   usuários pela API: fora do escopo (decisão de 04/11/2026).
-- Onde fica o sensor (dentro da carga ou placa do lado de fora) e envio ao vivo por
-  MQTT: em aberto. Não muda este contrato enquanto as leituras chegarem ao ThingSpeak
-  com o horário da medição.
+- Envio das leituras por MQTT: não implementado. Não muda este contrato enquanto as
+  leituras chegarem ao ThingSpeak com o horário da medição.
 
 ## Referências
 

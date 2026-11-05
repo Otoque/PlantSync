@@ -18,12 +18,20 @@ from fastapi.responses import JSONResponse
 # pegamos tambem o 404 de rota inexistente, que o proprio FastAPI levanta.
 from starlette.exceptions import HTTPException
 
-from config import CORS_ORIGENS, PLANTSYNC_SENHA, PLANTSYNC_USUARIO
-from controllers import autenticacao, frutas, laudos, lotes, monitoramento
+from config import (
+    CORS_ORIGENS,
+    PLANTSYNC_CHAVE_DISPOSITIVO,
+    PLANTSYNC_SENHA,
+    PLANTSYNC_USUARIO,
+)
+from controllers import autenticacao, dispositivo, frutas, laudos, lotes, monitoramento
 from models.banco import Base, SessaoLocal, engine
 from services.autenticacao import preparar_usuario_inicial
+from services.dispositivo import avisar_se_a_chave_for_invalida
 from services.erros import (
+    ErroChaveDoDispositivo,
     ErroDeRegra,
+    ErroDispositivoNaoConfigurado,
     ErroNaoAutenticado,
     ErroNaoEncontrado,
     ErroThingSpeak,
@@ -40,6 +48,7 @@ async def ao_iniciar(app):
     with SessaoLocal() as sessao:
         cadastrar_frutas_iniciais(sessao)
         preparar_usuario_inicial(sessao, PLANTSYNC_USUARIO, PLANTSYNC_SENHA)
+    avisar_se_a_chave_for_invalida(PLANTSYNC_CHAVE_DISPOSITIVO)
     yield
 
 
@@ -57,6 +66,7 @@ app.include_router(frutas.router)
 app.include_router(lotes.router)
 app.include_router(monitoramento.router)
 app.include_router(laudos.router)
+app.include_router(dispositivo.router)
 
 
 # Todos os erros saem no formato do contrato: {"erro": "mensagem"}.
@@ -100,6 +110,16 @@ def tratar_nao_autenticado(request: Request, erro: ErroNaoAutenticado):
     resposta = resposta_de_erro(401, str(erro))
     resposta.headers["WWW-Authenticate"] = "Bearer"
     return resposta
+
+
+@app.exception_handler(ErroChaveDoDispositivo)
+def tratar_chave_do_dispositivo(request: Request, erro: ErroChaveDoDispositivo):
+    return resposta_de_erro(401, str(erro))
+
+
+@app.exception_handler(ErroDispositivoNaoConfigurado)
+def tratar_dispositivo_nao_configurado(request: Request, erro: ErroDispositivoNaoConfigurado):
+    return resposta_de_erro(503, str(erro))
 
 
 @app.exception_handler(ErroNaoEncontrado)
