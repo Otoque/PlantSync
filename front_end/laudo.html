@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Laudo do lote · PlantSync</title>
+  <link rel="stylesheet" href="css/externas.css">
+  <script type="module" src="js/externas.js"></script>
+</head>
+<body class="pagina-externa" data-visao="laudo">
+  <header class="externo-topo">
+    <div class="externo-limite">
+      <span class="externo-marca">Plant<span>Sync</span></span>
+      <span class="externo-contexto">Laudo de transporte</span>
+    </div>
+  </header>
+  <main class="externo-limite documento" aria-labelledby="titulo">
+    <article class="externo-cartao">
+      <div class="laudo-cabecalho">
+        <div>
+          <p class="externo-rotulo" id="identificacao">Laudo de transporte</p>
+          <h1 id="titulo">Laudo do lote</h1>
+        </div>
+        <button class="externo-botao" type="button" id="imprimir" hidden>Imprimir ou salvar PDF</button>
+      </div>
+      <p id="estado" class="externo-estado" role="status">Consultando o laudo…</p>
+      <div id="resultado" hidden>
+        <dl class="externo-dados laudo-dados">
+          <div><dt>Produtor</dt><dd id="produtor"></dd></div>
+          <div><dt>Origem</dt><dd id="origem"></dd></div>
+          <div><dt>Destino</dt><dd id="destino"></dd></div>
+          <div><dt>Saída</dt><dd id="inicio"></dd></div>
+          <div><dt>Chegada</dt><dd id="fim"></dd></div>
+          <div><dt>Última leitura</dt><dd id="ultima"></dd></div>
+        </dl>
+        <section class="laudo-secao" aria-labelledby="risco-titulo">
+          <div class="laudo-veredito">
+            <h2 id="risco-titulo">Risco térmico</h2>
+            <span class="externo-pilula" id="risco"></span>
+          </div>
+          <p id="recomendacao"></p>
+          <p class="externo-nota" id="faixa"></p>
+          <div class="laudo-riscos">
+            <div><h3>Calor acima da faixa</h3><strong id="calor"></strong><span id="calor-nivel"></span></div>
+            <div><h3>Frio abaixo da faixa</h3><strong id="frio"></strong><span id="frio-nivel"></span></div>
+          </div>
+        </section>
+        <section class="laudo-secao" aria-labelledby="leituras-titulo">
+          <h2 id="leituras-titulo">Leituras de temperatura</h2>
+          <p id="leituras-resumo" class="externo-nota"></p>
+          <div id="grafico" hidden>
+            <div class="externo-legenda"><span>● Leitura</span><span>■ Faixa da carga</span></div>
+            <canvas id="curva" role="img" aria-label="Temperatura ao longo da viagem" aria-describedby="leituras-resumo grafico-janela"></canvas>
+            <div class="grafico-controles">
+              <p id="grafico-janela" class="externo-nota"></p>
+              <div>
+                <button type="button" class="externo-botao" id="afastar" aria-label="Afastar gráfico">−</button>
+                <button type="button" class="externo-botao" id="aproximar" aria-label="Aproximar gráfico">+</button>
+              </div>
+            </div>
+            <label class="grafico-tempo" for="leitura">Explorar linha do tempo</label>
+            <input type="range" id="leitura" min="0" step="1">
+            <p id="leitura-atual" class="leitura-atual" aria-live="polite"></p>
+          </div>
+        </section>
+        <section class="laudo-secao" aria-labelledby="trechos-titulo">
+          <h2 id="trechos-titulo">Trechos fora da faixa</h2>
+          <ul class="externo-lista" id="trechos"></ul>
+        </section>
+        <section class="laudo-secao" aria-labelledby="porta-titulo">
+          <h2 id="porta-titulo">Eventos de abertura de porta</h2>
+          <ul class="externo-lista" id="portas"></ul>
+        </section>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

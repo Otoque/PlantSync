@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Origem do lote · PlantSync</title>
+  <link rel="stylesheet" href="css/externas.css">
+  <script type="module" src="js/externas.js"></script>
+</head>
+<body class="pagina-externa" data-visao="publico">
+  <header class="externo-topo">
+    <div class="externo-limite">
+      <span class="externo-marca">Plant<span>Sync</span></span>
+      <span class="externo-contexto">Consulta do lote</span>
+    </div>
+  </header>
+  <main class="externo-limite documento documento-publico" aria-labelledby="titulo">
+    <article class="externo-cartao produto">
+      <p class="externo-rotulo">Origem do lote</p>
+      <h1 id="titulo">Consulta do lote</h1>
+      <p id="estado" class="externo-estado" role="status">Consultando o lote…</p>
+      <div id="resultado" hidden>
+        <dl class="externo-dados">
+          <div><dt>Produzido por</dt><dd id="produtor"></dd></div>
+          <div><dt>Origem</dt><dd id="origem"></dd></div>
+        </dl>
+        <div id="selo" class="selo-publico" hidden>
+          <span class="selo-icone" aria-hidden="true">✓</span>
+          <strong>Transportado dentro da faixa segura</strong>
+        </div>
+      </div>
+    </article>
+  </main>
+</body>
+</html>
