@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>PlantSync · Painel de cargas</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/painel.css">
+  <script defer src="vendor/leaflet/leaflet.js"></script>
+  <script defer src="vendor/chart.umd.js"></script>
+  <script defer src="vendor/qrcode.min.js"></script>
+  <script type="module" src="js/painel.js"></script>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+  <header class="topbar" id="topbar" hidden>
+    <div class="shell topbar-interna">
+      <a class="marca" href="#inicio">Plant<span>Sync</span></a>
+      <nav aria-label="Painel">
+        <a href="#inicio">Cargas</a>
+        <a href="#alertas">Alertas</a>
+        <a href="#frutas">Frutas</a>
+      </nav>
+      <button class="botao sair" type="button" id="sair">Sair</button>
+    </div>
+  </header>
+  <main id="conteudo" tabindex="-1" class="shell conteudo">
+    <section class="cartao">
+      <h1>Abrindo o painel</h1>
+      <p>Se você abriu este arquivo diretamente, inicie o servidor local e <a href="http://127.0.0.1:5500/">abra o painel</a>.</p>
+      <noscript><p>Habilite o JavaScript para usar o painel.</p></noscript>
+    </section>
+  </main>
+</body>
+</html>
