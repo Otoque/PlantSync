@@ -49,7 +49,13 @@ function mostrarPublico(lote) {
   texto("titulo", lote.fruta);
   texto("produtor", lote.produtor);
   texto("origem", lote.origem);
-  elemento("selo").hidden = lote.selo_faixa_segura !== true;
+  const confirmado = lote.selo_faixa_segura === true;
+  const selo = elemento("selo");
+  selo.hidden = false;
+  selo.classList.toggle("selo-pendente", !confirmado);
+  texto("selo-icone", confirmado ? "✓" : "–");
+  texto("selo-titulo", confirmado ? "Transportado dentro da faixa segura" : "Selo ainda não disponível");
+  texto("selo-descricao", confirmado ? "" : "O selo exige uma viagem encerrada com leituras suficientes e dentro dos critérios da faixa segura.");
 }
 
 function mostrarLaudo(lote) {
@@ -232,7 +238,10 @@ async function abrirDocumento() {
   const caminho = publico ? "/publico/" : "/laudos/";
   try {
     const lote = await requisitar(caminho + encodeURIComponent(identificador), { publica: true });
-    if (publico) mostrarPublico(lote);
+    if (publico) {
+      mostrarPublico(lote);
+      import("./mapa-publico.js").then(({ mostrarTrajeto }) => mostrarTrajeto(identificador)).catch(() => {});
+    }
     else mostrarLaudo(lote);
     elemento("resultado").hidden = false;
     elemento("estado").hidden = true;

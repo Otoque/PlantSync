@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Origem do lote · PlantSync</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/externas.css">
+  <script defer src="vendor/leaflet/leaflet.js"></script>
   <script type="module" src="js/externas.js"></script>
 </head>
 <body class="pagina-externa" data-visao="publico">
@@ -26,9 +28,15 @@
           <div><dt>Origem</dt><dd id="origem"></dd></div>
         </dl>
         <div id="selo" class="selo-publico" hidden>
-          <span class="selo-icone" aria-hidden="true">✓</span>
-          <strong>Transportado dentro da faixa segura</strong>
+          <span class="selo-icone" id="selo-icone" aria-hidden="true"></span>
+          <div><strong id="selo-titulo"></strong><p id="selo-descricao" class="externo-nota"></p></div>
         </div>
+        <section id="trajeto-publico" class="trajeto-publico" aria-labelledby="trajeto-titulo" hidden>
+          <h2 id="trajeto-titulo">Trajeto planejado</h2>
+          <p class="trajeto-destino" id="trajeto-destino"></p>
+          <div id="mapa-publico" aria-label="Mapa do trajeto planejado"></div>
+          <p class="externo-nota">Traçado aproximado de demonstração. Sem posição GPS ao vivo.</p>
+        </section>
       </div>
     </article>
   </main>
