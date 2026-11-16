@@ -116,15 +116,35 @@ function periodosDaViagem(analise) {
   </table></div></section>`;
 }
 
-function mostrarCompartilhamento(lote, elemento) {
+function mostrarCompartilhamento(endereco, elemento) {
   const qr = elemento.querySelector("[data-qr]");
   if (!qr) return;
   if (!globalThis.QRCode) {
     qr.textContent = "QR indisponível. Abra o link da página pública.";
     return;
   }
-  const endereco = new URL(linkPagina("publico.html", { codigo: lote.codigo_publico }), location.href);
-  new globalThis.QRCode(qr, { text: endereco.href, width: 128, height: 128 });
+  new globalThis.QRCode(qr, { text: endereco, width: 192, height: 192 });
+}
+
+async function enderecoPublico(codigo) {
+  if (!codigo) return "";
+  let endereco = new URL(linkPagina("publico.html", { codigo }));
+  try {
+    const resposta = await fetch("./qr-publico.local.json", {
+      cache: "no-store", signal: AbortSignal.timeout(1200),
+    });
+    if (resposta.ok) {
+      const { origem } = await resposta.json();
+      const url = new URL(origem);
+      if (url.protocol === "http:" && !url.username && !url.password) {
+        endereco = new URL("/publico.html", url);
+        endereco.searchParams.set("codigo", codigo);
+      }
+    }
+  } catch {
+    // Sem configuração LAN, mantenha o link do próprio painel.
+  }
+  return endereco.href;
 }
 
 async function mostrarLote(id, elemento) {
@@ -133,7 +153,9 @@ async function mostrarLote(id, elemento) {
   const [lote, leituras] = await Promise.all([requisitar(caminho), requisitar(caminho + "/leituras")]);
   if (!elemento.isConnected) return;
   const analise = lote.analise;
-  const urlPublica = lote.codigo_publico ? escapar(linkPagina("publico.html", { codigo: lote.codigo_publico })) : "";
+  const endereco = await enderecoPublico(lote.codigo_publico);
+  if (!elemento.isConnected) return;
+  const urlPublica = escapar(endereco);
   const urlLaudo = lote.token_laudo ? escapar(linkPagina("laudo.html", { token: lote.token_laudo })) : "";
   elemento.innerHTML = `<header class="cabecalho"><a href="#inicio">← Cargas</a>
     <h1>Lote ${escapar(lote.id)} · ${escapar(nomeFruta(lote.fruta))}</h1>
@@ -193,7 +215,7 @@ async function mostrarLote(id, elemento) {
       botaoEncerrar.disabled = false;
     }
   });
-  mostrarCompartilhamento(lote, elemento);
+  mostrarCompartilhamento(endereco, elemento);
   mostrarGrafico(elemento, leituras, lote.faixa_segura);
 }
 

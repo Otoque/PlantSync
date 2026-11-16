@@ -46,3 +46,7 @@ desktop.ini
 # Banco local do backend (SQLite) - gerado ao rodar a API
 *.db
 .pytest_cache/
+
+# Configuração do QR para a rede local e trajetos escolhidos para divulgação
+/front_end/qr-publico.local.json
+/front_end/mapas/publicos/

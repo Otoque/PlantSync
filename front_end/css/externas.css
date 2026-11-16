@@ -60,6 +60,12 @@ h2 { margin: 0 0 .55rem; font-size: clamp(1.35rem, 4vw, 1.7rem); line-height: 1.
   display: grid; flex: none; place-items: center; inline-size: 2.25rem; block-size: 2.25rem;
   border: 1px solid currentColor; border-radius: 50%; font-size: 1.25rem;
 }
+.selo-publico p { margin: .2rem 0 0; }
+.selo-publico p:empty { display: none; }
+.selo-pendente { background: #f1eee4; color: #665535; }
+.trajeto-publico { margin-top: 1.55rem; }
+.trajeto-destino { margin: 0 0 .6rem; font-size: .92rem; }
+#mapa-publico { height: clamp(14rem, 52vw, 20rem); border-radius: .65rem; background: #d8e9ed; }
 .laudo-cabecalho { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .externo-botao {
   display: inline-grid; place-items: center; min-height: 2.75rem; padding: .5rem .85rem;
