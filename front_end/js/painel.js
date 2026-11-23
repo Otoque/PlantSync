@@ -1,6 +1,7 @@
 import { encerrarSessao, linkPagina, requisitar, salvarSessao, sessaoAtual } from "./dados.js";
 import { renderizarInicio } from "./inicio.js";
 import { limparOperacao, renderizarOperacao } from "./operacao.js";
+import { renderizarPlacas } from "./placas.js";
 
 const principal = document.getElementById("conteudo");
 const topo = document.getElementById("topbar");
@@ -14,7 +15,7 @@ function lerRota() {
   const hash = location.hash;
   const lote = /^#lote\/(\d+)$/.exec(hash);
   if (lote) return { tela: "lote", id: lote[1], nav: "#inicio" };
-  if (["#alertas", "#frutas"].includes(hash)) return { tela: hash.slice(1), nav: hash };
+  if (["#alertas", "#frutas", "#placas"].includes(hash)) return { tela: hash.slice(1), nav: hash };
   return { tela: "inicio", nav: "#inicio" };
 }
 
@@ -92,11 +93,12 @@ async function abrirTela(moverFoco = false) {
     if (a.hash === rota.nav) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  const titulos = { inicio: "Cargas", lote: "Detalhe do lote", alertas: "Alertas", frutas: "Frutas" };
+  const titulos = { inicio: "Cargas", lote: "Detalhe do lote", alertas: "Alertas", frutas: "Frutas", placas: "Placas" };
   document.title = `${titulos[rota.tela]} · PlantSync`;
   el.innerHTML = '<p class="aviso" role="status">Carregando…</p>';
   try {
     if (rota.tela === "inicio") await renderizarInicio(el);
+    else if (rota.tela === "placas") await renderizarPlacas(el);
     else await renderizarOperacao(rota, el);
   } catch (erro) {
     if (!el.isConnected) return;

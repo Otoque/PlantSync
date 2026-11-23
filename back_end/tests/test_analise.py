@@ -105,6 +105,21 @@ def test_analise_de_lote_sem_leituras():
     assert analise["temp_max_c"] is None
 
 
+def test_verde_com_4_2_graus_hora_informa_desvio():
+    analise = analisar_lote([leitura(0, 4.1), leitura(2, 4.1)], FAIXA_UVA)
+    assert analise["graus_hora_acima"] == 4.2
+    assert analise["nivel_acima"] == "VERDE"
+    assert analise["amostras_fora_faixa"] == 2
+    assert analise["recomendacao"].startswith("Leituras fora da faixa.")
+
+
+def test_uma_amostra_fria_informa_desvio_antes_de_acumular_graus_hora():
+    analise = analisar_lote([leitura(0, 9.0)], FAIXA_MANGA)
+    assert analise["graus_hora_abaixo"] == 0.0
+    assert analise["nivel_abaixo"] == "VERDE"
+    assert analise["recomendacao"].startswith("Leituras fora da faixa.")
+
+
 # ---------- risco nos dois lados da faixa (calor acima do teto e frio abaixo do piso) ----------
 
 def test_manga_a_8_5_graus_por_72_horas_nao_pode_ser_verde():

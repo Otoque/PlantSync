@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Consulta do lote · PlantSync</title>
+  <link rel="stylesheet" href="css/produto.css">
+  <script defer src="vendor/chart.umd.js"></script>
+  <script type="module" src="js/produto-publico.js"></script>
+</head>
+<body>
+  <main id="publico" class="public-page">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>PlantSync</div>
+    <article class="panel">
+      <h1 id="titulo">Consulta do lote</h1>
+      <p id="estado" role="status">Consultando…</p>
+      <div id="resumo" hidden>
+        <dl class="public-details" id="dados"></dl>
+        <p id="selo" class="section-space" hidden></p>
+      </div>
+      <div id="laudo" hidden></div>
+    </article>
+  </main>
+</body>
+</html>

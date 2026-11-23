@@ -6,6 +6,12 @@ O PlantSync registra a temperatura e a umidade de cargas de frutas no Vale do S�
 
 Este guia começa do zero no Windows e no Linux. Siga o bloco de comandos do seu sistema. Você pode abrir o painel antes de ligar a placa. Para ver novas medições, a placa precisa publicar no canal que a API está lendo.
 
+## Operação por empresa
+
+O painel principal utiliza a API `/api/v1`, com contas individuais, empresas, permissões, ambientes, viagens e histórico por lote. O nome da primeira empresa pode ser informado em `PLANTSYNC_EMPRESA_INICIAL`. A conta configurada no ambiente inicial recebe administração da plataforma e vínculo de administrador nessa empresa. As demais contas são criadas por convite.
+
+Se você já possui um banco com lotes e leituras, faça o ensaio de migração antes de retomar a operação. O [guia de migração e operação](docs/OPERACAO-POR-EMPRESA.md) explica a cópia, a conversão, a verificação e a recuperação. O [contrato da API por empresa](docs/API-OPERACAO.md) contém os caminhos para integrações.
+
 ## 1. Baixe o projeto
 
 Instale o [Git](https://git-scm.com/downloads) e o [Python 3.14](https://www.python.org/downloads/). Para gravar uma placa, instale também a [Arduino IDE](https://www.arduino.cc/en/software/).
@@ -30,7 +36,7 @@ Se preferir baixar sem Git, abra o [repositório oficial](https://github.com/Oto
 
 ## 2. Escolha ou crie o canal ThingSpeak
 
-1. Entre no [ThingSpeak](https://thingspeak.mathworks.com/) e abra **Channels → My Channels**. Combine com a equipe qual canal usar. Durante o teste, deixe só uma placa publicando nele. A API agrupa medições pelo horário do lote, então dois sensores no mesmo canal podem misturar dados. Para criar um canal próprio, clique em **New Channel**, dê um nome, habilite os campos na ordem da tabela e salve.
+1. Entre no [ThingSpeak](https://thingspeak.mathworks.com/) e abra **Channels → My Channels**. Combine com a equipe qual canal usar. Cada placa precisa de um canal próprio. Para criar um canal, clique em **New Channel**, dê um nome, habilite os campos na ordem da tabela e salve.
 2. No canal escolhido, anote o número **Channel ID**. Na aba **API Keys**, localize a **Write API Key** (a chave que permite ao ESP32 enviar) e, se o canal for privado, a **Read API Key** (a chave que permite à API ler). As duas precisam pertencer ao mesmo canal. A documentação do [ThingSpeak sobre canais e chaves](https://www.mathworks.com/help/thingspeak/channel-control.html) explica onde encontrá-las.
 
 | Campo | O que a placa envia |
@@ -81,7 +87,7 @@ No `back_end/.env`, preencha uma variável por linha. Para mudar uma opção com
 
 - `PLANTSYNC_USUARIO` e `PLANTSYNC_SENHA`: escolha um login local de **1 a 100 caracteres** e uma senha de **12 a 200 caracteres**.
 - `CANAL_THINGSPEAK`: escreva o número do **Channel ID** depois de `=`.
-- `CHAVE_LEITURA_THINGSPEAK`: preencha com a **Read API Key** se o canal for privado. Em canal público, deixe em branco.
+- `PLANTSYNC_THINGSPEAK_CHAVE_<EMPRESA_ID>_<CANAL>`: após cadastrar a fonte, troque os identificadores pelos valores reais e preencha com a **Read API Key** se o canal for privado. Exemplo de nome: `PLANTSYNC_THINGSPEAK_CHAVE_1_1234567`. Em canal público, não é necessária. `CHAVE_LEITURA_THINGSPEAK` pertence ao contrato anterior.
 - `DATABASE_URL` e `CORS_ORIGENS`: mantenha os padrões para os comandos deste guia.
 - `PLANTSYNC_CHAVE_DISPOSITIVO`: só é necessária para um firmware que consulte a faixa do lote direto na API. O firmware desta `main` envia medições ao ThingSpeak e não faz essa consulta.
 
@@ -105,7 +111,7 @@ O Git ignora esses arquivos preenchidos e o banco. Os arquivos `.example` podem 
 Set-Location back_end
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 **Linux, com Python 3.14 instalado:**
@@ -114,7 +120,7 @@ python -m venv .venv
 cd back_end
 python3.14 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 **Linux, se a distribuição não oferece Python 3.14.** Instale o [uv pelo guia oficial](https://docs.astral.sh/uv/getting-started/installation/). Ele baixa o Python pedido e prepara o ambiente. Entre em `back_end` a partir da raiz e execute:
@@ -123,7 +129,7 @@ python3.14 -m venv .venv
 cd back_end
 uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 Nas próximas vezes, basta entrar em `back_end` e executar o último comando. Deixe o terminal aberto. O [teste da API](http://127.0.0.1:8000/api/saude) deve mostrar `{"status":"ok"}`. Depois de alterar o `.env`, pare a API com `Ctrl+C` e execute o último comando de novo.
@@ -133,13 +139,13 @@ Nas próximas vezes, basta entrar em `back_end` e executar o último comando. De
 **Windows:**
 
 ```powershell
-python -m http.server 5500 --bind 127.0.0.1 --directory front_end
+python tools/servir_painel_local.py
 ```
 
 **Linux:**
 
 ```bash
-back_end/.venv/bin/python -m http.server 5500 --bind 127.0.0.1 --directory front_end
+back_end/.venv/bin/python tools/servir_painel_local.py
 ```
 
 Deixe os dois terminais abertos. Acesse o [painel PlantSync](http://127.0.0.1:5500/) e entre com o usuário e a senha que você colocou no `.env`. Use esse endereço para abrir o painel pelo navegador.
@@ -226,19 +232,29 @@ Para quem vai programar outra placa, o envio pode ser um `POST` para `https://ap
 
 ## 6. Confira o fluxo com uma leitura nova
 
-1. No painel, abra **Cargas → Nova carga**. Cadastre uma carga de teste com fruta, produtor, origem, destino e tipo de destino. O lote começa na hora do cadastro. Só pode haver uma carga em trânsito por vez.
-2. Aguarde uma leitura da placa **posterior ao cadastro**. Abra o canal do ThingSpeak e confirme que surgiu uma nova entrada em **Field 1** depois do horário de início do lote.
-3. Volte a **Cargas** e clique em **Sincronizar leituras**. Verifique se o painel informa novas leituras. Abra o detalhe do lote e confira o horário e a temperatura no gráfico.
-4. Em **Compartilhar lote**, confira o QR e a página pública. O selo só pode aparecer após encerrar o lote, com ao menos 10 leituras válidas, sem intervalos de mais de 30 minutos sem dados e com risco verde por calor e por frio. Veja as regras da rota pública no [contrato da API](docs/api-contrato.md). Abra o link do laudo completo para ver a análise e o gráfico. Compartilhe esse link só com os destinatários do laudo, pois quem tiver o endereço consegue consultar as leituras.
+1. Em **Ambientes e sensores**, cadastre a câmara fria e a fonte do sensor. Informe o Channel ID do ThingSpeak e associe o sensor ao ambiente. Para canal privado, configure no backend `PLANTSYNC_THINGSPEAK_CHAVE_<EMPRESA_ID>_<CANAL>` com a chave de leitura e reinicie a API.
+2. Em **Lotes → Novo lote**, informe fruta, cliente, destino, quantidade e o ambiente de preparação. Confira a faixa aplicada. O cadastro registra o início da preparação e passa a considerar as leituras durante a permanência no ambiente.
+3. Aguarde uma entrada do sensor posterior ao início da preparação. Confira o horário e o Field 1 no ThingSpeak. Use **Sincronizar leituras** e abra o lote para conferir temperatura, gráfico, extremos e origem. Sem leitura válida, a tela informa a ausência de dados.
+4. Cadastre a viagem, as paradas e o compartimento do veículo. Associe o sensor correspondente ao compartimento e registre o carregamento. Depois confirme o despacho. A espera dentro do veículo fica separada da preparação e do transporte.
+5. Em **Etiquetas QR**, selecione o lote, confira e imprima. O QR abre o resumo público. O laudo detalhado exige acesso autorizado ou link secreto válido. Os critérios finais do selo estão pendentes; a classificação verde isolada não libera a carga.
+6. Registre o recebimento do lote, consulte o histórico e emita o laudo. As mudanças de fase registram autor, responsabilidade e horários. Compartilhe documentos apenas com os destinatários pretendidos.
 
 Links com `127.0.0.1` abrem no computador que serve o painel. Para escanear pelo celular na mesma rede Wi-Fi, siga o [passo a passo de QR na rede local](front_end/README.md#abrir-o-qr-no-celular-na-mesma-rede).
 
-O mapa mostra a região. A versão atual da API não importa coordenadas do ThingSpeak. Mesmo com uma placa com GPS, marcadores exigem uma integração adicional no backend.
+O mapa usa ruas do OpenStreetMap e posições registradas na viagem pelo celular ou por integração autorizada. Temperatura no ThingSpeak não fornece GPS automaticamente. Sem posição, a tela informa a ausência de localização. Para iniciar rastreio no celular, use HTTPS e permita a localização; confira as limitações em [Operação por empresa](docs/OPERACAO-POR-EMPRESA.md#localização-no-celular).
+
+### Acompanhar duas cargas simultâneas
+
+1. Crie um canal ThingSpeak para cada ESP32. Grave cada placa com a **Write API Key do seu próprio canal** e confira no Monitor Serial e no ThingSpeak onde aparecem as leituras. Não use a mesma chave nas duas placas.
+2. Em **Ambientes e sensores**, cadastre cada sensor com seu Channel ID e associe-o ao ambiente correto. Para canais privados, use `PLANTSYNC_THINGSPEAK_CHAVE_<EMPRESA_ID>_<CANAL>` no `.env` e reinicie a API.
+3. Lotes presentes no mesmo ambiente podem compartilhar as leituras do mesmo sensor; cada lote aplica sua própria faixa. Lotes em ambientes distintos precisam dos pontos de medição correspondentes. Ao mover o sensor, registre a troca de instalação para preservar o histórico.
+
+A atualização de um banco anterior exige a conversão explícita descrita em [Migração de um banco existente](docs/OPERACAO-POR-EMPRESA.md#migração-de-um-banco-existente). As tabelas antigas são preservadas. A consulta antiga da faixa do dispositivo atende somente a fonte padrão e recusa indicar uma faixa única quando há vários lotes monitorados.
 
 ### Trocar de canal ou de computador
 
-1. Pare a API e configure um **banco separado** antes de sincronizar o novo canal. Guarde o banco antigo e defina, por exemplo, `DATABASE_URL=sqlite:///plantsync-canal-novo.db`. Números de entrada podem se repetir entre canais. Ao iniciar a API em `back_end`, o novo arquivo será criado nessa pasta.
-2. No mesmo `.env`, ajuste `CANAL_THINGSPEAK` e `CHAVE_LEITURA_THINGSPEAK`. Ao trocar para um canal público, deixe a chave de leitura em branco. Só então reinicie a API.
+1. Na operação por empresa, cadastre o novo canal como outra fonte e encerre a instalação anterior no horário correto. Os identificadores das leituras são separados por fonte. Não troque a identidade de um canal que já possui histórico.
+2. Configure a chave de leitura da nova fonte, se privada, em `PLANTSYNC_THINGSPEAK_CHAVE_<EMPRESA_ID>_<CANAL>`. O `CANAL_THINGSPEAK` identifica o canal padrão usado na conversão do banco antigo.
 3. Atualize a **Write API Key** em `hardware/plantsync-edge/credentials.h`, copie apenas esse arquivo para a pasta do `.ino` e grave o ESP32 novamente. Assim você preserva os ajustes de pinos feitos na sua cópia do firmware. Ao mudar de computador, copie os modelos e repita a configuração.
 
 ### Se algo não funcionar

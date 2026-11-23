@@ -42,6 +42,8 @@ ROTAS_ABERTAS = [
 
 ROTAS_PROTEGIDAS = [
     ("POST", "/api/logout"),
+    ("GET", "/api/dispositivos"),
+    ("POST", "/api/dispositivos"),
     ("GET", "/api/frutas"),
     ("POST", "/api/frutas"),
     ("PUT", "/api/frutas/{fruta_id}"),

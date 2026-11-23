@@ -12,6 +12,13 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, build_opener
 FRONT = Path(__file__).resolve().parent.parent / "front_end"
 API = "http://127.0.0.1:8000"
 ARQUIVOS = {
+    "/publico-lote.html": ("publico-lote.html", "text/html; charset=utf-8"),
+    "/css/produto.css": ("css/produto.css", "text/css; charset=utf-8"),
+    "/js/produto-publico.js": ("js/produto-publico.js", "text/javascript; charset=utf-8"),
+    "/js/produto-api.js": ("js/produto-api.js", "text/javascript; charset=utf-8"),
+    "/js/produto-texto.js": ("js/produto-texto.js", "text/javascript; charset=utf-8"),
+    "/js/produto-monitor.js": ("js/produto-monitor.js", "text/javascript; charset=utf-8"),
+    "/vendor/chart.umd.js": ("vendor/chart.umd.js", "text/javascript; charset=utf-8"),
     "/publico.html": ("publico.html", "text/html; charset=utf-8"),
     "/css/externas.css": ("css/externas.css", "text/css; charset=utf-8"),
     "/js/externas.js": ("js/externas.js", "text/javascript; charset=utf-8"),
@@ -21,9 +28,9 @@ ARQUIVOS = {
     "/vendor/leaflet/leaflet.js": ("vendor/leaflet/leaflet.js", "text/javascript; charset=utf-8"),
     "/mapas/nordeste.geojson": ("mapas/nordeste.geojson", "application/geo+json"),
 }
-CODIGO = re.compile(r"/api/publico/[A-Za-z0-9_-]{8}")
+CODIGO = re.compile(r"/api/(?:publico/[A-Za-z0-9_-]{8}|v1/(?:publico|laudos)/[A-Za-z0-9_-]{8,128})")
 TRAJETO = re.compile(r"/mapas/publicos/[A-Za-z0-9_-]{8}\.json")
-POLITICA = "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'"
+POLITICA = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'"
 REDES_PRIVADAS = tuple(map(IPv4Network, ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")))
 ARQUIVOS_DE_TRAJETO = FRONT / "mapas" / "publicos"
 CAMPOS_PUBLICOS = ("fruta", "produtor", "origem", "selo_faixa_segura")
@@ -72,12 +79,18 @@ class PaginaPublica(BaseHTTPRequestHandler):
         elif CODIGO.fullmatch(caminho):
             try:
                 with cliente.open(API + caminho, timeout=5) as resposta:
-                    corpo = resposta.read(8193)
-                if len(corpo) > 8192:
+                    corpo = resposta.read(2_097_153)
+                if len(corpo) > 2_097_152:
                     self.responder(502, "application/json", b'{"erro":"Resposta indisponivel."}')
                     return
                 registro = json.loads(corpo)
-                publico = {campo: registro[campo] for campo in CAMPOS_PUBLICOS}
+                if caminho.startswith("/api/v1/laudos/"):
+                    publico = registro
+                elif caminho.startswith("/api/v1/publico/"):
+                    campos = ("id", "fruit", "producer", "origin", "seal")
+                    publico = {campo: registro[campo] for campo in campos}
+                else:
+                    publico = {campo: registro[campo] for campo in CAMPOS_PUBLICOS}
                 self.responder(200, "application/json; charset=utf-8", json.dumps(publico).encode())
             except HTTPError as erro:
                 if erro.code == 404:

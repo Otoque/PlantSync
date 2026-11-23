@@ -1,8 +1,9 @@
 import { requisitar, linkPagina } from "./dados.js";
-import { escapar, formatarData, numero, pilula, nomeFruta, faixa } from "./ui.js";
+import { escapar, formatarData, numero, pilula, nomeFruta, faixa, mostrarResultadoDaSincronizacao } from "./ui.js";
 
 const janelaTresHoras = 3 * 60 * 60 * 1000;
 const meiaHora = 30 * 60 * 1000;
+const limiteDePontosIndividuais = 60;
 const formatarHora = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   timeZone: "America/Recife",
@@ -36,26 +37,40 @@ function mostrarGrafico(elemento, leituras, limites) {
   });
   const inicio = horaDaAmostra(leituras[0]);
   const fim = horaDaAmostra(leituras.at(-1));
-  const extremos = leituras.reduce((picos, atual) => ({
-    baixa: atual.temperatura_c < picos.baixa.temperatura_c ? atual : picos.baixa,
-    alta: atual.temperatura_c > picos.alta.temperatura_c ? atual : picos.alta,
-  }), { baixa: leituras[0], alta: leituras[0] });
   const ponto = (leitura) => ({ x: horaDaAmostra(leitura), y: leitura.temperatura_c });
+  const marcador = (rotulo, leitura, cor, estilo) => linha(rotulo, [ponto(leitura)], cor, {
+    showLine: false, pointRadius: 7, pointHoverRadius: 9, pointStyle: estilo, order: -1,
+  });
+  const minima = elemento.querySelector("[data-minima-medida]");
+  const maxima = elemento.querySelector("[data-maxima-medida]");
   const desenhar = (periodo) => {
     graficoAtivo?.destroy();
     const recent = periodo === "recente";
     const amostras = recent ? leituras.filter((leitura) => horaDaAmostra(leitura) >= fim - janelaTresHoras) : leituras;
-    const marcas = [...new Set([extremos.baixa, extremos.alta])].filter((leitura) => amostras.includes(leitura)).map(ponto);
-    const dados = recent ? amostras.map(ponto) : mediasDaViagem(amostras);
-    const linhaFaixa = (label, y) => linha(label, [{ x: dados[0].x, y }, { x: fim, y }], "#53735e", {
+    const extremos = amostras.reduce((picos, atual) => ({
+      baixa: atual.temperatura_c < picos.baixa.temperatura_c ? atual : picos.baixa,
+      alta: atual.temperatura_c > picos.alta.temperatura_c ? atual : picos.alta,
+    }), { baixa: amostras[0], alta: amostras[0] });
+    minima.textContent = numero(extremos.baixa.temperatura_c) + " °C";
+    maxima.textContent = numero(extremos.alta.temperatura_c) + " °C";
+    const marcas = extremos.baixa === extremos.alta
+      ? [marcador("Mínima e máxima medidas", extremos.baixa, "#603b70", "rectRot")]
+      : [
+          marcador("Mínima medida", extremos.baixa, "#1d6093", "rectRot"),
+          marcador("Máxima medida", extremos.alta, "#a83c22", "triangle"),
+        ];
+    const mostrarMedicoes = recent || amostras.length <= limiteDePontosIndividuais;
+    const dados = mostrarMedicoes ? amostras.map(ponto) : mediasDaViagem(amostras);
+    const margem = inicio === fim ? 5 * 60 * 1000 : 0;
+    const linhaFaixa = (label, y) => linha(label, [{ x: dados[0].x - margem, y }, { x: fim + margem, y }], "#53735e", {
       borderDash: [5, 5], pointRadius: 0, borderWidth: 1,
     });
     try {
       graficoAtivo = new globalThis.Chart(caixa.querySelector("canvas"), {
         type: "line",
         data: { datasets: [
-          linha(recent ? "Temperatura" : "Média de 30 min", dados, "#315a48", { borderWidth: 2, pointRadius: dados.length < 25 ? 3 : 0 }),
-          linha("Extremos medidos", marcas, "#9b4d11", { showLine: false, pointRadius: 5 }),
+          linha(mostrarMedicoes ? "Temperatura" : "Média de 30 min", dados, "#315a48", { borderWidth: 2, pointRadius: dados.length <= limiteDePontosIndividuais ? 3 : 0 }),
+          ...marcas,
           linhaFaixa("Limite inferior", limites.temp_min_c),
           linhaFaixa("Limite superior", limites.temp_max_c),
         ] },
@@ -77,7 +92,6 @@ function mostrarGrafico(elemento, leituras, limites) {
 }
 
 function tabelaDeLeituras(leituras) {
-  if (!leituras.length) return '<p class="aviso">Este lote ainda não recebeu leituras.</p>';
   const ultimas = leituras.slice(-10).reverse();
   return `<details>
     <summary>Últimas ${ultimas.length} leituras</summary>
@@ -92,9 +106,11 @@ function tabelaDeLeituras(leituras) {
   </details>`;
 }
 
-function cartaoDeRisco(titulo, grausHora, nivel) {
+function cartaoDeRisco(titulo, grausHora, nivel, desvio) {
   return `<section class="cartao"><h3>${titulo}</h3>
-    <p><strong>${grausHora == null ? "—" : numero(grausHora) + " °C·h"}</strong></p>${pilula(nivel)}
+    <p><strong>${grausHora == null ? "—" : numero(grausHora) + " °C·h"}</strong></p>
+    <p>Risco acumulado ${pilula(nivel)}</p>
+    ${desvio ? `<p><span class="pilula amarelo">Desvio detectado</span> ${desvio}</p>` : ""}
   </section>`;
 }
 
@@ -153,19 +169,29 @@ async function mostrarLote(id, elemento) {
   const [lote, leituras] = await Promise.all([requisitar(caminho), requisitar(caminho + "/leituras")]);
   if (!elemento.isConnected) return;
   const analise = lote.analise;
+  const ultimaLeitura = leituras.at(-1);
+  const { temp_min_c: piso, temp_max_c: teto } = lote.faixa_segura;
+  const desvioCalor = analise.temp_max_c != null && analise.temp_max_c > teto
+    ? `Máxima medida: ${numero(analise.temp_max_c)} °C. Limite: ${numero(teto)} °C.` : "";
+  const desvioFrio = analise.temp_min_c != null && analise.temp_min_c < piso
+    ? `Mínima medida: ${numero(analise.temp_min_c)} °C. Limite: ${numero(piso)} °C.` : "";
+  const estadoTemperatura = ultimaLeitura?.temperatura_c > teto ? "Acima da faixa"
+    : ultimaLeitura?.temperatura_c < piso ? "Abaixo da faixa" : "";
   const endereco = await enderecoPublico(lote.codigo_publico);
   if (!elemento.isConnected) return;
   const urlPublica = escapar(endereco);
   const urlLaudo = lote.token_laudo ? escapar(linkPagina("laudo.html", { token: lote.token_laudo })) : "";
+  limparOperacao();
   elemento.innerHTML = `<header class="cabecalho"><a href="#inicio">← Cargas</a>
     <h1>Lote ${escapar(lote.id)} · ${escapar(nomeFruta(lote.fruta))}</h1>
     <p>${escapar(lote.origem)} → ${escapar(lote.destino)}</p>
   </header>
   <section class="cartao">
     <h2>${lote.fim ? "Viagem concluída" : "Viagem em trânsito"}</h2>
-    <p>${pilula(analise.nivel)} ${escapar(analise.recomendacao)}</p>
+    <p>Risco acumulado ${pilula(analise.nivel)} · ${escapar(analise.recomendacao)}</p>
     <dl class="ficha">
       <div><dt>Produtor</dt><dd>${escapar(lote.produtor)}</dd></div>
+      <div><dt>Placa</dt><dd>${escapar(lote.dispositivo?.nome ?? "Placa padrão")}</dd></div>
       <div><dt>Início</dt><dd>${escapar(formatarData(lote.inicio))}</dd></div>
       ${lote.fim ? `<div><dt>Conclusão</dt><dd>${escapar(formatarData(lote.fim))}</dd></div>` : ""}
       <div><dt>Faixa de temperatura</dt><dd>${escapar(faixa(lote.faixa_segura))}</dd></div>
@@ -174,12 +200,17 @@ async function mostrarLote(id, elemento) {
     ${!lote.fim ? `<div class="acoes"><button type="button" class="botao" data-encerrar>Encerrar lote</button></div>
       <p data-encerrar-erro role="alert" hidden></p>` : ""}
   </section>
-  <div class="grade duas">
-    ${cartaoDeRisco("Calor acima da faixa", analise.graus_hora_acima, analise.nivel_acima)}
-    ${cartaoDeRisco("Frio abaixo da faixa", analise.graus_hora_abaixo, analise.nivel_abaixo)}
-  </div>
   <section class="cartao"><h2>Temperatura da viagem</h2>
-    <p>${analise.ultima_leitura ? "Última leitura: " + escapar(formatarData(analise.ultima_leitura)) : "Aguardando sincronização."}</p>
+    ${ultimaLeitura ? `<dl class="ficha">
+      <div><dt>Temperatura medida</dt><dd><span data-temperatura-medida>${numero(ultimaLeitura.temperatura_c)} °C</span>
+        ${estadoTemperatura ? `<span class="pilula amarelo">${estadoTemperatura}</span>` : ""}</dd></div>
+      <div><dt>Umidade medida</dt><dd>${ultimaLeitura.umidade_pct == null ? "—" : numero(ultimaLeitura.umidade_pct) + "%"}</dd></div>
+      <div><dt>Última leitura</dt><dd>${escapar(formatarData(ultimaLeitura.data_hora))}</dd></div>
+    </dl>` : `<p class="aviso">${lote.fim ? "Este lote não recebeu leituras." : "Aguardando sincronização."}</p>`}
+    ${!lote.fim ? `<div class="acoes"><button type="button" class="botao secundario" data-sincronizar-lote>Sincronizar leituras</button></div>
+      <p class="aviso" data-sync-status role="status"></p>` : ""}
+    ${ultimaLeitura ? `<p>Extremos do período · Mínima <strong data-minima-medida>${numero(analise.temp_min_c)} °C</strong>
+      · Máxima <strong data-maxima-medida>${numero(analise.temp_max_c)} °C</strong></p>` : ""}
     <div data-grafico>
       <label class="campo">Período
         <select><option value="completa">Viagem completa</option><option value="recente">Últimas 3 horas medidas</option></select>
@@ -188,9 +219,13 @@ async function mostrarLote(id, elemento) {
         <canvas role="img" aria-label="Temperaturas medidas, extremos e faixa segura da viagem"></canvas>
       </div>
     </div>
-    ${tabelaDeLeituras(leituras)}
+    ${ultimaLeitura ? tabelaDeLeituras(leituras) : ""}
     <p>O percurso GPS ainda não está disponível para este lote.</p>
   </section>
+  <div class="grade duas">
+    ${cartaoDeRisco("Calor acima da faixa", analise.graus_hora_acima, analise.nivel_acima, desvioCalor)}
+    ${cartaoDeRisco("Frio abaixo da faixa", analise.graus_hora_abaixo, analise.nivel_abaixo, desvioFrio)}
+  </div>
   ${periodosDaViagem(analise)}
   ${urlPublica || urlLaudo ? `<section class="cartao"><h2>Compartilhar lote</h2>
     <div class="acoes">
@@ -199,6 +234,26 @@ async function mostrarLote(id, elemento) {
     </div>
     ${urlPublica ? '<details><summary>Ver código QR público</summary><div data-qr></div></details>' : ""}
   </section>` : ""}`;
+
+  const botaoSync = elemento.querySelector("[data-sincronizar-lote]");
+  botaoSync?.addEventListener("click", async () => {
+    const aviso = elemento.querySelector("[data-sync-status]");
+    botaoSync.disabled = true;
+    aviso.classList.remove("erro");
+    aviso.textContent = "Buscando leituras no ThingSpeak…";
+    try {
+      const resultado = await requisitar("/sincronizar", { method: "POST" });
+      if (!aviso.isConnected) return;
+      await mostrarLote(id, elemento);
+      const novoAviso = elemento.querySelector("[data-sync-status]");
+      if (novoAviso) mostrarResultadoDaSincronizacao(novoAviso, resultado);
+    } catch (erro) {
+      aviso.classList.add("erro");
+      aviso.textContent = erro.message;
+    } finally {
+      botaoSync.disabled = false;
+    }
+  });
 
   const botaoEncerrar = elemento.querySelector("[data-encerrar]");
   botaoEncerrar?.addEventListener("click", async () => {
@@ -338,8 +393,8 @@ export function limparOperacao() {
 }
 
 export async function renderizarOperacao(rota, elemento) {
-  limparOperacao();
   if (rota.tela === "lote") return mostrarLote(rota.id, elemento);
+  limparOperacao();
   if (rota.tela === "alertas") return mostrarAlertas(elemento);
   return mostrarFrutas(elemento);
 }

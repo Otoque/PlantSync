@@ -10,8 +10,8 @@ Cada linha "nome: Mapped[tipo]" cria uma coluna daquele tipo.
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.banco import Base
 
@@ -55,6 +55,7 @@ class Lote(Base):
     temp_max_c: Mapped[float]
     umidade_min_pct: Mapped[float]
     umidade_max_pct: Mapped[float]
+    vinculo: Mapped["VinculoDispositivo | None"] = relationship(cascade="all, delete-orphan")
 
 
 class Leitura(Base):
@@ -64,6 +65,37 @@ class Leitura(Base):
     # Numero da entrada no ThingSpeak; evita gravar a mesma leitura duas vezes.
     entry_id: Mapped[int] = mapped_column(unique=True)
     data_hora: Mapped[datetime] = mapped_column(index=True)
+    temperatura_c: Mapped[float]
+    umidade_pct: Mapped[float | None]
+    luminosidade_lux: Mapped[float | None]
+
+
+class Dispositivo(Base):
+    __tablename__ = "dispositivos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nome: Mapped[str]
+    canal: Mapped[int] = mapped_column(unique=True)
+
+
+class VinculoDispositivo(Base):
+    __tablename__ = "vinculos_dispositivo"
+
+    lote_id: Mapped[int] = mapped_column(ForeignKey("lotes.id"), primary_key=True)
+    dispositivo_id: Mapped[int | None] = mapped_column(ForeignKey("dispositivos.id"), index=True)
+    # A unicidade impede dois lotes de ocuparem a mesma placa simultaneamente.
+    # Zero reserva o canal padrão. Ao encerrar a viagem, liberamos a ocupação.
+    ocupacao: Mapped[int | None] = mapped_column(unique=True)
+    dispositivo: Mapped[Dispositivo] = relationship()
+
+
+class LeituraDispositivo(Base):
+    __tablename__ = "leituras_dispositivo"
+    __table_args__ = (Index("ix_leitura_dispositivo_hora", "dispositivo_id", "data_hora"),)
+
+    dispositivo_id: Mapped[int] = mapped_column(ForeignKey("dispositivos.id"), primary_key=True)
+    entry_id: Mapped[int] = mapped_column(primary_key=True)
+    data_hora: Mapped[datetime]
     temperatura_c: Mapped[float]
     umidade_pct: Mapped[float | None]
     luminosidade_lux: Mapped[float | None]

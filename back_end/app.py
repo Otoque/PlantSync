@@ -9,6 +9,7 @@ Contrato completo: docs/api-contrato.md
 """
 
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -21,11 +22,17 @@ from starlette.exceptions import HTTPException
 from config import (
     CORS_ORIGENS,
     PLANTSYNC_CHAVE_DISPOSITIVO,
+    PLANTSYNC_EMPRESA_INICIAL,
     PLANTSYNC_SENHA,
     PLANTSYNC_USUARIO,
 )
-from controllers import autenticacao, dispositivo, frutas, laudos, lotes, monitoramento
+from controllers import autenticacao, catalogo, contas, dispositivo, dispositivos, frutas, laudos, lotes, monitoramento, operacao, preferencias
 from models.banco import Base, SessaoLocal, engine
+from models.contas import Conta
+from models.migracoes import RegistroMigracao
+from models import operacao as tabelas_operacao
+from services.acessos import preparar_conta_inicial
+from services.catalogo import garantir_identidades_padrao
 from services.autenticacao import preparar_usuario_inicial
 from services.dispositivo import avisar_se_a_chave_for_invalida
 from services.erros import (
@@ -47,18 +54,29 @@ async def ao_iniciar(app):
     Base.metadata.create_all(engine)
     with SessaoLocal() as sessao:
         cadastrar_frutas_iniciais(sessao)
+        garantir_identidades_padrao(sessao)
         preparar_usuario_inicial(sessao, PLANTSYNC_USUARIO, PLANTSYNC_SENHA)
+        if PLANTSYNC_USUARIO and PLANTSYNC_SENHA and len(PLANTSYNC_SENHA.strip()) >= 12:
+            preparar_conta_inicial(
+                sessao, PLANTSYNC_USUARIO, PLANTSYNC_SENHA, PLANTSYNC_EMPRESA_INICIAL,
+            )
+            sessao.commit()
+        app.state.legado_convertido = sessao.get(
+            RegistroMigracao, "legado_para_operacao_v1",
+        ) is not None
+        app.state.operacao_inicializada = sessao.query(Conta.id).first() is not None
     avisar_se_a_chave_for_invalida(PLANTSYNC_CHAVE_DISPOSITIVO)
     yield
 
 
-app = FastAPI(title="PlantSync API", version="0.3", lifespan=ao_iniciar)
+app = FastAPI(title="PlantSync API", version="1.0", lifespan=ao_iniciar)
+auditoria = logging.getLogger("plantsync.auditoria")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGENS,
     allow_methods=["*"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Empresa-ID", "Idempotency-Key"],
 )
 
 app.include_router(autenticacao.router)
@@ -67,6 +85,39 @@ app.include_router(lotes.router)
 app.include_router(monitoramento.router)
 app.include_router(laudos.router)
 app.include_router(dispositivo.router)
+app.include_router(dispositivos.router)
+app.include_router(contas.router)
+app.include_router(preferencias.router)
+app.include_router(catalogo.router)
+app.include_router(operacao.router)
+
+
+@app.middleware("http")
+async def proteger_historico_convertido(request: Request, call_next):
+    caminho = request.url.path
+    acesso_legado = caminho.startswith("/api/") and not caminho.startswith("/api/v1/")
+    consulta_publica = request.method in {"GET", "HEAD", "OPTIONS"} and (
+        caminho in {"/api/saude", "/api/dispositivo/faixa"}
+        or caminho.startswith(("/api/publico/", "/api/laudos/"))
+    )
+    operacao_ativa = getattr(app.state, "legado_convertido", False) or getattr(app.state, "operacao_inicializada", False)
+    if operacao_ativa and acesso_legado and not consulta_publica:
+        return JSONResponse(status_code=410, content={
+            "erro": "Esta API foi substituída pela operação por empresa em /api/v1.",
+        })
+    resposta = await call_next(request)
+    integracao = getattr(request.state, "integracao_auditavel", None)
+    if integracao and resposta.status_code in (403, 404):
+        integracao_id, empresa_id = integracao
+        rota = getattr(request.scope.get("route"), "path", "indisponivel")
+        auditoria.warning(
+            "integracao_restrita integracao_id=%d empresa_id=%d metodo=%s rota=%s status=%d",
+            integracao_id, empresa_id, request.method, rota, resposta.status_code,
+        )
+    if caminho.startswith(("/api/v1/", "/api/laudos/")):
+        resposta.headers["Cache-Control"] = "no-store"
+        resposta.headers["Referrer-Policy"] = "no-referrer"
+    return resposta
 
 
 # Todos os erros saem no formato do contrato: {"erro": "mensagem"}.
@@ -135,7 +186,10 @@ def tratar_erro_thingspeak(request: Request, erro: ErroThingSpeak):
 @app.exception_handler(HTTPException)
 def tratar_erro_http(request: Request, erro: HTTPException):
     mensagem = MENSAGENS_HTTP.get(erro.status_code, erro.detail)
-    return resposta_de_erro(erro.status_code, mensagem)
+    resposta = resposta_de_erro(erro.status_code, mensagem)
+    if erro.headers:
+        resposta.headers.update(erro.headers)
+    return resposta
 
 
 @app.exception_handler(RequestValidationError)

@@ -38,12 +38,16 @@ LIMITE_LARANJA = 20.0
 LIMITE_VERMELHO = 50.0
 
 RECOMENDACOES = {
-    "VERDE": "Cadeia do frio íntegra ou desvio marginal. Carga liberada.",
+    "VERDE": "Nenhum desvio de temperatura nas leituras registradas.",
     "AMARELO": "Abuso térmico moderado. Priorizar esta carga na expedição.",
     "LARANJA": "Abuso relevante. Inspeção física obrigatória antes do embarque.",
     "VERMELHO": "Abuso severo. Redirecionar para mercado interno ou processamento.",
     "SEM_DADOS": "Nenhuma leitura recebida para este lote.",
 }
+
+RECOMENDACAO_DESVIO_COM_RISCO_BAIXO = (
+    "Leituras fora da faixa. Confira os desvios e a última medição."
+)
 
 # Versao curta da recomendacao, usada no texto dos alertas.
 ACOES_CURTAS = {
@@ -317,7 +321,11 @@ def analisar_lote(leituras, faixa):
     analise["nivel_acima"] = nivel_acima
     analise["nivel_abaixo"] = nivel_abaixo
     analise["nivel"] = nivel
-    analise["recomendacao"] = RECOMENDACOES[nivel]
+    analise["recomendacao"] = (
+        RECOMENDACAO_DESVIO_COM_RISCO_BAIXO
+        if nivel == "VERDE" and analise["amostras_fora_faixa"]
+        else RECOMENDACOES[nivel]
+    )
     analise["trechos_fora_faixa"] = detectar_trechos_fora_da_faixa(leituras, piso, teto)
     analise["eventos_porta"] = detectar_eventos_porta(leituras)
     return analise

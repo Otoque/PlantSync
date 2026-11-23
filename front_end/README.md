@@ -3,13 +3,13 @@
 Na raiz do repositório, sirva o frontend em HTTP:
 
 ```powershell
-python -m http.server 5500 --bind 127.0.0.1 --directory front_end
+python tools/servir_painel_local.py
 ```
 
 - [Painel com API](http://127.0.0.1:5500/): inicie também o backend na porta 8000. Consulte o modelo `back_end/.env.example` para configurar o usuário e o canal `CANAL_THINGSPEAK` no ambiente local do backend. O mesmo host (localhost ou 127.0.0.1) é usado nas duas portas.
 - Em um servidor com origem única, sirva esta pasta na raiz e encaminhe `/api` para o backend. Antes de publicar uma instância, confira as limitações na seção de segurança do [contrato da API](../docs/api-contrato.md).
 
-O painel consulta a API. A malha local do Nordeste vem da [API de malhas geográficas do IBGE](https://servicodados.ibge.gov.br/api/docs/malhas?versao=3), endpoint `/api/v3/malhas/regioes/NE`, com qualidade mínima e divisão por UF. Ela não depende de um serviço de blocos de mapa. Marcadores aparecem somente para lotes com coordenadas informadas pela API. A lista continua disponível se o arquivo da malha não carregar.
+O painel utiliza a API `/api/v1`, com empresas, papéis e permissões. O mapa carrega ruas do OpenStreetMap e exibe posições registradas por celular ou integração autorizada. Sem posições, informa a ausência de localização. A tabela continua disponível se a base cartográfica falhar. Consulte [Operação por empresa](../docs/OPERACAO-POR-EMPRESA.md) para o fluxo atual e a configuração do rastreio.
 
 ## Abrir o QR no celular, na mesma rede
 
@@ -23,8 +23,8 @@ O painel consulta a API. A malha local do Nordeste vem da [API de malhas geográ
 
 4. Atualize o painel, abra um lote e gere o QR de novo. Se o celular ainda não alcançar a página na mesma rede, confira se a rede permite comunicação entre aparelhos e se o firewall do computador libera a porta TCP 5501 para a sua sub-rede.
 
-## Trajetos aproximados e selo
+## Percurso e selo
 
-O painel desenha em tracejado os trajetos de `mapas/trajetos-planejados.json` quando a origem e o destino cadastrados no lote coincidem com uma entrada desse catálogo. São referências aproximadas, distintas de coordenadas enviadas por GPS.
+O painel distingue o percurso observado de uma rota planejada quando ela foi registrada. Os arquivos regionais e catálogos antigos não representam GPS nem são preenchidos automaticamente com movimento simulado.
 
-Para mostrar uma rota no QR, publique **só um trajeto que possa ser divulgado**. Abra o link público no painel, copie o valor de `codigo` e crie `front_end/mapas/publicos/<codigo>.json` com um objeto contendo `origem`, `destino` e `pontos` no formato do catálogo. Sem esse arquivo, a página exibe o resumo. Os arquivos por lote e o IP local ficam fora do Git. O selo verde só é exibido quando a API confirma as regras do lote.
+O QR atual abre `publico-lote.html?codigo=...` com um resumo do lote. Gráfico e histórico ficam no laudo autenticado ou no link secreto com validade e revogação. Os critérios do selo estão pendentes: a avaliação não declara liberação automática da carga. Configurações locais e segredos permanecem fora do Git.

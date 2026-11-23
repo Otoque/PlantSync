@@ -40,6 +40,9 @@ CHAVE_LEITURA_THINGSPEAK = os.getenv("CHAVE_LEITURA_THINGSPEAK")
 PLANTSYNC_USUARIO = os.getenv("PLANTSYNC_USUARIO")
 PLANTSYNC_SENHA = os.getenv("PLANTSYNC_SENHA")
 
+# Nome usado somente na criação inicial da organização operacional.
+PLANTSYNC_EMPRESA_INICIAL = os.getenv("PLANTSYNC_EMPRESA_INICIAL", "").strip() or "Operação existente"
+
 # Chave da placa para buscar a faixa do lote. Sem ela, GET /api/dispositivo/faixa responde 503.
 PLANTSYNC_CHAVE_DISPOSITIVO = os.getenv("PLANTSYNC_CHAVE_DISPOSITIVO")
 

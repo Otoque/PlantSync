@@ -1,7 +1,31 @@
 # Contrato da API do PlantSync
 
-Versão 0.8 (rascunho, 05/11/2026). Este documento descreve o que o backend entrega ao
+Este documento preserva o contrato anterior para referência de compatibilidade. O painel atual utiliza [API da operação por empresa](API-OPERACAO.md). Ao inicializar a operação v1, login e rotas internas antigas respondem `410`; não use as regras antigas de selo para liberar cargas. Consulte também [Modelo de dados e segurança](MODELO-OPERACIONAL.md).
+
+Versão 0.9 (rascunho). Este documento descreve o que o backend entrega ao
 painel web. Qualquer mudança aqui precisa ser combinada com a frente do frontend.
+
+## Mudanças da v0.9 (em relação à v0.8)
+
+- `GET /api/dispositivos` e `POST /api/dispositivos` exigem sessão do painel. O GET devolve
+  uma lista de objetos `{id, nome, canal, ocupado}`. O objeto com `id: null` é a placa
+  padrão do `CANAL_THINGSPEAK`. O POST recebe `{nome, canal}`, devolve 201 com a placa,
+  e recusa com 400 o canal padrão ou um canal já cadastrado. Nenhuma chave é retornada.
+- `POST /api/lotes` aceita `dispositivo_id` opcional. Use um ID cadastrado para vincular a
+  placa à viagem. O campo ausente ou nulo mantém o canal padrão. A placa fica reservada
+  até o encerramento. Uma placa em uso ou um início sobreposto na mesma placa retorna 400.
+- O painel recebe `dispositivo: {id, nome, canal}` no resumo e no detalhe dos lotes com
+  placa cadastrada. A página pública e o laudo preservam seu formato.
+- Cada leitura de uma placa cadastrada é gravada pelo par **placa e número da entrada**.
+  A leitura pertence ao lote dessa placa cujo intervalo inclui a hora da medição. Lotes
+  simultâneos em canais diferentes podem ter o mesmo `entry_id` sem misturar dados.
+- A sincronização consulta o canal padrão e os canais com lotes vinculados. Em instalações
+  com mais de uma fonte, `canais` traz os resultados individuais, `falhas` lista canais
+  indisponíveis, e as contagens principais são os totais dos canais bem-sucedidos. Falha em
+  todos os canais retorna 502. `THINGSPEAK_CHAVE_LEITURA_<ID>` no `.env` configura canais
+  privados adicionais. O campo legado `canal` continua identificando o canal padrão.
+- O banco existente preserva lotes e leituras. As tabelas novas são criadas na
+  inicialização. A rota legada `/api/dispositivo/faixa` segue limitada à placa padrão.
 
 ## Mudanças da v0.8 (em relação à v0.7)
 
@@ -156,7 +180,7 @@ banco é recriado na próxima execução.
 
 | Nível | Graus-hora | Recomendação |
 |---|---|---|
-| `VERDE` | menos de 5 | Cadeia do frio íntegra ou desvio marginal. Carga liberada. |
+| `VERDE` | menos de 5 | A recomendação informa se houve leituras fora da faixa e, nesse caso, pede a conferência dos desvios e da última medição. |
 | `AMARELO` | de 5 a menos de 20 | Abuso térmico moderado. Priorizar esta carga na expedição. |
 | `LARANJA` | de 20 a menos de 50 | Abuso relevante. Inspeção física obrigatória antes do embarque. |
 | `VERMELHO` | 50 ou mais | Abuso severo. Redirecionar para mercado interno ou processamento. |
@@ -192,6 +216,8 @@ Todas exigem login, menos as marcadas como **abertas** e a rota da placa.
 | PUT | `/api/frutas/{id}` | Editar o nome, a faixa ou a fonte de uma fruta. |
 | GET | `/api/lotes` | Listar os lotes com o resumo de risco. |
 | POST | `/api/lotes` | Cadastrar um lote. |
+| GET | `/api/dispositivos` | Listar placas e verificar disponibilidade. |
+| POST | `/api/dispositivos` | Cadastrar uma placa com canal ThingSpeak próprio. |
 | GET | `/api/lotes/{id}` | Ver um lote com a análise completa. |
 | POST | `/api/lotes/{id}/encerrar` | Marcar a chegada do lote ao destino. |
 | GET | `/api/lotes/{id}/leituras` | Histórico de leituras do lote (para os gráficos). |
@@ -199,7 +225,7 @@ Todas exigem login, menos as marcadas como **abertas** e a rota da placa.
 | POST | `/api/sincronizar` | Buscar leituras novas no ThingSpeak e gravar no banco. |
 | GET | `/api/publico/{codigo}` | **Aberta.** Visão pública do lote (consumidor, via QR Code). |
 | GET | `/api/laudos/{token}` | **Aberta.** Laudo completo do lote (produtor e importador). |
-| GET | `/api/dispositivo/faixa` | **Só com a chave da placa.** Faixa do lote em trânsito, para o LED. |
+| GET | `/api/dispositivo/faixa` | **Só com a chave da placa.** Faixa do lote da placa padrão, para o LED. |
 
 ---
 
@@ -416,8 +442,8 @@ Resposta `400`:
 { "erro": "Fruta 'abacaxi' não cadastrada. Use: uva, manga." }
 ```
 
-Regra de um lote ativo: existe um único canal do ThingSpeak (um sensor), então só pode
-haver um lote `em_transito` por vez. Criar outro antes de encerrar o atual devolve `400`:
+Regra de um lote ativo por placa: selecione com `dispositivo_id`. Sem esse campo, o
+lote usa a placa padrão. Criar um lote para uma placa em uso devolve `400`:
 
 ```json
 { "erro": "O lote 3 ainda está em trânsito. Encerre-o antes de cadastrar outro." }
@@ -703,7 +729,7 @@ Resposta `404` se o token não existir, com a mesma mensagem do código público
 
 ### GET `/api/dispositivo/faixa`
 
-Usada pela placa para saber a faixa do lote em trânsito e acender o LED. Exige o cabeçalho
+Usada pela placa padrão para saber a faixa do seu lote em trânsito e acender o LED. Exige o cabeçalho
 `X-Chave-Dispositivo`, com o valor da variável `PLANTSYNC_CHAVE_DISPOSITIVO` (ao menos 32
 caracteres). A chave não abre nenhuma outra rota, e o token de login não abre esta. Sem
 lote em trânsito não há faixa para mostrar, e a placa continua com a última que recebeu.
@@ -745,10 +771,9 @@ Sem isso o ThingSpeak grava o horário da chegada e a leitura cai no intervalo e
 
 ## Limitações conhecidas
 
-- **Um sensor, um lote por vez.** As leituras vão para o lote pelo horário, e há um só
-  canal do ThingSpeak. Por isso a API aceita apenas um lote em trânsito de cada vez
-  (ver `POST /api/lotes`). Para acompanhar cargas simultâneas, cada lote precisaria do
-  seu próprio sensor e canal, e o lote passaria a guardar o número do canal.
+- **Uma viagem por placa ao mesmo tempo.** A associação usa o canal e o horário da medição.
+  Para acompanhar cargas simultâneas, configure um canal diferente em cada ESP32
+  e selecione a placa certa ao criar o lote (ver `POST /api/lotes`).
 
 - **Login sem limite de tentativas.** Não há bloqueio depois de várias senhas erradas. O
   hash lento dificulta, mas não impede, testar senhas pela rede: use uma senha forte.

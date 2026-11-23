@@ -54,7 +54,11 @@ def conferir_chave(recebida, configurada):
 
 
 def faixa_para_a_placa(sessao):
-    """Faixa copiada no lote em transito (ha um so por canal)."""
+    """A credencial antiga dá acesso somente à faixa da placa padrão."""
+    from models.migracoes import RegistroMigracao
+    convertido = sessao.get(RegistroMigracao, "legado_para_operacao_v1")
+    if convertido is not None:
+        return faixa_operacional(sessao, convertido.empresa_id)
     lote = lote_em_transito(sessao)
     if lote is None:
         raise ErroNaoEncontrado("Nenhum lote em trânsito.")
@@ -62,3 +66,34 @@ def faixa_para_a_placa(sessao):
     resposta = {"lote_id": lote.id, "fruta": lote.fruta_id}
     resposta.update(faixa_do_lote(lote))
     return resposta
+
+
+def faixa_operacional(sessao, empresa_id):
+    from fastapi import HTTPException
+    from sqlalchemy import or_, select
+
+    from config import CANAL_THINGSPEAK
+    from models.operacao import FonteSensor, LoteOperacional, Permanencia, VinculoSensor
+    from services.datas import agora_utc
+
+    agora = agora_utc()
+    consulta = select(LoteOperacional).join(
+        Permanencia, Permanencia.lote_id == LoteOperacional.id,
+    ).join(
+        VinculoSensor, VinculoSensor.ambiente_id == Permanencia.ambiente_id,
+    ).join(FonteSensor, FonteSensor.id == VinculoSensor.fonte_id).where(
+        FonteSensor.empresa_id == empresa_id,
+        FonteSensor.canal == CANAL_THINGSPEAK,
+        Permanencia.inicio <= agora,
+        or_(Permanencia.fim.is_(None), Permanencia.fim > agora),
+        VinculoSensor.inicio <= agora,
+        or_(VinculoSensor.fim.is_(None), VinculoSensor.fim > agora),
+        LoteOperacional.fase < 3,
+    ).distinct()
+    lotes = list(sessao.scalars(consulta))
+    if not lotes:
+        raise ErroNaoEncontrado("Nenhum lote monitorado pela placa padrão.")
+    if len(lotes) != 1:
+        raise HTTPException(409, "A placa acompanha vários lotes. Consulte as faixas pela API da operação.")
+    lote = lotes[0]
+    return {"lote_id": lote.id, "fruta": lote.fruta_id, **faixa_do_lote(lote)}

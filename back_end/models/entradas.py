@@ -43,6 +43,12 @@ class LoteNovo(BaseModel):
     tipo_destino: str
     inicio: datetime | None = None
     faixa_segura: FaixaSegura | None = None
+    dispositivo_id: int | None = Field(default=None, gt=0)
+
+
+class DispositivoNovo(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    canal: int = Field(gt=0, le=2147483647)
 
 
 class DadosDeLogin(BaseModel):

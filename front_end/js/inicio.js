@@ -1,5 +1,5 @@
 import { requisitar } from "./dados.js";
-import { escapar, faixa, nomeFruta, pilula } from "./ui.js";
+import { escapar, faixa, mostrarResultadoDaSincronizacao, nomeFruta, pilula } from "./ui.js";
 
 const siglas = {
   21: "MA", 22: "PI", 23: "CE", 24: "RN", 25: "PB",
@@ -133,6 +133,7 @@ function montarLista(el, lotes) {
       <a class="carga" href="#lote/${escapar(encodeURIComponent(lote.id))}">
         <span class="carga-titulo"><strong>Lote ${escapar(lote.id)} · ${escapar(nomeFruta(lote.fruta))}</strong>${pilula(lote.risco?.nivel)}</span>
         <span class="carga-rota">${escapar(lote.origem)} → ${escapar(lote.destino)}</span>
+        <span class="carga-rota">${escapar(lote.dispositivo?.nome ?? "Placa padrão")}</span>
         <span class="carga-rota">Faixa de temperatura ${escapar(faixa(lote.faixa_segura))}</span>
       </a>`).join("") : `<p class="aviso">${filtro === "em_transito" ? "Nenhuma carga em trânsito." : "Nenhuma carga concluída."}</p>`;
   }
@@ -143,12 +144,8 @@ function montarLista(el, lotes) {
   mostrar("em_transito");
 }
 
-async function montarCadastro(el, ativo) {
+async function montarCadastro(el) {
   const caixa = el.querySelector("#cadastro");
-  if (ativo) {
-    caixa.innerHTML = '<p class="suave">Encerre a carga em trânsito para iniciar outra.</p>';
-    return;
-  }
   caixa.innerHTML = `
     <details class="cartao"><summary>Nova carga</summary>
       <form>
@@ -158,8 +155,9 @@ async function montarCadastro(el, ativo) {
           <label class="campo">Origem<input name="origem" required></label>
           <label class="campo">Destino<input name="destino" required></label>
           <label class="campo">Tipo de destino<select name="tipo_destino" required><option value="porto">Porto</option><option value="mercado_interno">Mercado interno</option></select></label>
+          <label class="campo">Placa que vai na carga<select name="dispositivo_id" required><option value="">Selecione</option></select></label>
         </div>
-        <p class="suave">O lote começa ao cadastrar e recebe a faixa padrão da fruta selecionada.</p>
+        <p class="suave">O lote começa ao cadastrar. As leituras vêm da placa selecionada. <a href="#placas">Cadastrar outra placa</a>.</p>
         <p class="aviso erro" role="alert"></p>
         <button class="botao" type="submit" disabled>Cadastrar carga</button>
       </form>
@@ -168,10 +166,21 @@ async function montarCadastro(el, ativo) {
   const botao = form.querySelector("button");
   const aviso = form.querySelector("[role=alert]");
   try {
-    const frutas = await requisitar("/frutas");
+    const [frutas, placas] = await Promise.all([requisitar("/frutas"), requisitar("/dispositivos")]);
     for (const fruta of frutas) form.elements.fruta.add(new Option(fruta.nome, fruta.id));
-    botao.disabled = !frutas.length;
+    const livres = placas.filter(placa => !placa.ocupado);
+    for (const placa of placas) {
+      const opcao = new Option(
+        `${placa.nome} · canal ${placa.canal}${placa.ocupado ? " · indisponível" : ""}`,
+        placa.id ?? "padrao",
+      );
+      opcao.disabled = placa.ocupado;
+      form.elements.dispositivo_id.add(opcao);
+    }
+    if (livres.length === 1) form.elements.dispositivo_id.value = livres[0].id ?? "padrao";
+    botao.disabled = !frutas.length || !livres.length;
     if (!frutas.length) aviso.textContent = "Cadastre uma fruta antes de criar o lote.";
+    else if (!livres.length) aviso.textContent = "Libere uma placa ou cadastre outra antes de iniciar a carga.";
   } catch (erro) {
     aviso.textContent = erro.message;
   }
@@ -182,6 +191,7 @@ async function montarCadastro(el, ativo) {
     aviso.textContent = "";
     try {
       const body = Object.fromEntries(new FormData(form));
+      body.dispositivo_id = body.dispositivo_id === "padrao" ? null : Number(body.dispositivo_id);
       for (const chave of ["produtor", "origem", "destino"]) {
         body[chave] = body[chave].trim();
         if (!body[chave]) throw new Error("Preencha produtor, origem e destino.");
@@ -240,7 +250,9 @@ export async function renderizarInicio(el) {
       if (!el.isConnected) return;
       el.dispatchEvent(new Event("sair-tela"));
       await renderizarInicio(el);
-      if (el.isConnected) el.querySelector("#aviso-sync").textContent = `${resultado.novas} novas leituras. ${resultado.descartadas} descartadas.`;
+      if (el.isConnected) {
+        mostrarResultadoDaSincronizacao(el.querySelector("#aviso-sync"), resultado);
+      }
     } catch (erro) {
       aviso.classList.add("erro");
       aviso.textContent = erro.message;
@@ -248,5 +260,5 @@ export async function renderizarInicio(el) {
       botao.disabled = false;
     }
   });
-  await montarCadastro(el, lotes.some(lote => lote.status === "em_transito"));
+  await montarCadastro(el);
 }

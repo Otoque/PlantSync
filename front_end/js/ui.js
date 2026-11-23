@@ -36,3 +36,11 @@ export function nomeFruta(fruta) {
 export function faixa(valor) {
   return valor ? `${numero(valor.temp_min_c)} a ${numero(valor.temp_max_c)} °C` : "—";
 }
+
+export function mostrarResultadoDaSincronizacao(aviso, resultado) {
+  const falhas = resultado.falhas ?? [];
+  const resumo = `${resultado.novas} novas leituras. ${resultado.descartadas} descartadas.`;
+  aviso.textContent = falhas.length
+    ? `${resumo} Falha nos canais: ${falhas.map(item => item.canal).join(", ")}.` : resumo;
+  aviso.classList.toggle("erro", falhas.length > 0);
+}

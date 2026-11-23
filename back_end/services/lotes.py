@@ -2,7 +2,10 @@
 
 import secrets
 
-from models.tabelas import Fruta, Leitura, Lote
+from sqlalchemy.exc import IntegrityError
+
+from config import CANAL_THINGSPEAK
+from models.tabelas import Dispositivo, Fruta, Leitura, LeituraDispositivo, Lote, VinculoDispositivo
 from services.analise import analisar_lote, fora_da_faixa, limpar_leituras, porta_aberta
 from services.datas import agora_utc, formatar_utc, para_utc
 from services.erros import ErroDeRegra, ErroNaoEncontrado
@@ -25,9 +28,15 @@ def todos_os_lotes(sessao):
     return sessao.query(Lote).order_by(Lote.inicio.desc()).all()
 
 
-def lote_em_transito(sessao):
-    """Devolve o lote que ainda nao foi encerrado, ou None."""
-    return sessao.query(Lote).filter(Lote.fim.is_(None)).first()
+def lotes_da_placa(sessao, dispositivo_id):
+    return sessao.query(Lote).outerjoin(VinculoDispositivo).filter(
+        VinculoDispositivo.dispositivo_id == dispositivo_id,
+    )
+
+
+def lote_em_transito(sessao, dispositivo_id=None):
+    """Sem placa informada, procura somente a viagem do canal padrão."""
+    return lotes_da_placa(sessao, dispositivo_id).filter(Lote.fim.is_(None)).first()
 
 
 def fruta_escolhida(sessao, fruta_id):
@@ -74,9 +83,9 @@ def gerar_token_laudo():
     return secrets.token_urlsafe(16)
 
 
-def garantir_que_nao_ha_lote_em_transito(sessao):
-    """Existe um so sensor (um canal), entao so um lote viaja por vez."""
-    atual = lote_em_transito(sessao)
+def garantir_que_nao_ha_lote_em_transito(sessao, dispositivo_id):
+    """Uma placa não pode atender a duas viagens ao mesmo tempo."""
+    atual = lote_em_transito(sessao, dispositivo_id)
     if atual is not None:
         raise ErroDeRegra(
             f"O lote {atual.id} ainda está em trânsito. Encerre-o antes de cadastrar outro."
@@ -89,9 +98,11 @@ def validar_tipo_destino(tipo_destino):
         raise ErroDeRegra("tipo_destino precisa ser 'porto' ou 'mercado_interno'.")
 
 
-def garantir_inicio_depois_do_ultimo_lote(sessao, inicio):
+def garantir_inicio_depois_do_ultimo_lote(sessao, inicio, dispositivo_id):
     """Se o lote comecasse antes do fim do anterior, herdaria leituras dele."""
-    ultimo = sessao.query(Lote).filter(Lote.fim.is_not(None)).order_by(Lote.fim.desc()).first()
+    ultimo = lotes_da_placa(sessao, dispositivo_id).filter(
+        Lote.fim.is_not(None)
+    ).order_by(Lote.fim.desc()).first()
     if ultimo is not None and inicio <= ultimo.fim:
         raise ErroDeRegra(f"O início precisa ser depois do fim do lote {ultimo.id}.")
 
@@ -103,9 +114,16 @@ def criar_lote(sessao, dados):
     """
     fruta = fruta_escolhida(sessao, dados.fruta)
     validar_tipo_destino(dados.tipo_destino)
-    garantir_que_nao_ha_lote_em_transito(sessao)
+    placa = None
+    if dados.dispositivo_id is not None:
+        placa = sessao.get(Dispositivo, dados.dispositivo_id)
+        if placa is None:
+            raise ErroDeRegra("Placa não cadastrada.")
+    elif sessao.query(Dispositivo).filter_by(canal=CANAL_THINGSPEAK).first():
+        raise ErroDeRegra("O canal padrão está em conflito com uma placa cadastrada.")
+    garantir_que_nao_ha_lote_em_transito(sessao, dados.dispositivo_id)
     inicio = inicio_do_lote(dados)
-    garantir_inicio_depois_do_ultimo_lote(sessao, inicio)
+    garantir_inicio_depois_do_ultimo_lote(sessao, inicio, dados.dispositivo_id)
 
     faixa = escolher_faixa(fruta, dados.faixa_segura)
     lote = Lote(
@@ -123,8 +141,16 @@ def criar_lote(sessao, dados):
         umidade_min_pct=faixa.umidade_min_pct,
         umidade_max_pct=faixa.umidade_max_pct,
     )
+    lote.vinculo = VinculoDispositivo(
+        dispositivo_id=dados.dispositivo_id, ocupacao=dados.dispositivo_id or 0,
+    )
     sessao.add(lote)
-    sessao.commit()
+    try:
+        sessao.commit()
+    except IntegrityError:
+        sessao.rollback()
+        garantir_que_nao_ha_lote_em_transito(sessao, dados.dispositivo_id)
+        raise
     return lote
 
 
@@ -143,6 +169,8 @@ def registrar_fim_do_lote(sessao, lote, fim):
         raise ErroDeRegra("O fim não pode ser anterior ao início do lote.")
 
     lote.fim = fim
+    if lote.vinculo is not None:
+        lote.vinculo.ocupacao = None
     sessao.commit()
     return lote
 
@@ -158,13 +186,18 @@ def faixa_do_lote(lote):
 
 def leituras_do_lote(sessao, lote):
     """
-    Leituras gravadas no horario do lote, como dicionarios, sem limpeza.
-    Uma leitura pertence ao lote quando o horario dela esta entre o
-    inicio e o fim do lote. Lote sem fim recebe tudo depois do inicio.
+    Leituras da placa vinculada no intervalo da viagem. A placa padrão
+    mantém os registros históricos da tabela anterior.
     """
-    consulta = sessao.query(Leitura).filter(Leitura.data_hora >= lote.inicio)
+    modelo = Leitura
+    if lote.vinculo is not None and lote.vinculo.dispositivo_id is not None:
+        modelo = LeituraDispositivo
+        consulta = sessao.query(modelo).filter_by(dispositivo_id=lote.vinculo.dispositivo_id)
+    else:
+        consulta = sessao.query(modelo)
+    consulta = consulta.filter(modelo.data_hora >= lote.inicio)
     if lote.fim is not None:
-        consulta = consulta.filter(Leitura.data_hora <= lote.fim)
+        consulta = consulta.filter(modelo.data_hora <= lote.fim)
 
     lista = []
     for leitura in consulta.all():
@@ -216,6 +249,7 @@ def lote_basico_json(lote):
 def lote_para_json(lote, analise):
     """Formato curto, usado na lista de lotes: o lote e o resumo do risco."""
     resposta = lote_basico_json(lote)
+    acrescentar_dispositivo(resposta, lote)
     resposta["risco"] = {
         "nivel": analise["nivel"],
         "graus_hora_acima": analise["graus_hora_acima"],
@@ -256,9 +290,17 @@ def lote_detalhado_json(lote, analise):
     e toda a analise da viagem.
     """
     resposta = lote_basico_json(lote)
+    acrescentar_dispositivo(resposta, lote)
     resposta["token_laudo"] = lote.token_laudo
     resposta["analise"] = analise_para_json(analise)
     return resposta
+
+
+def acrescentar_dispositivo(resposta, lote):
+    if lote.vinculo is None or lote.vinculo.dispositivo_id is None:
+        return
+    placa = lote.vinculo.dispositivo
+    resposta["dispositivo"] = {"id": placa.id, "nome": placa.nome, "canal": placa.canal}
 
 
 def leitura_para_json(leitura, faixa):

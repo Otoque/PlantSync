@@ -1,6 +1,6 @@
 """Conexao com o banco de dados (SQLAlchemy)."""
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import DATABASE_URL
@@ -12,6 +12,17 @@ if DATABASE_URL.startswith("sqlite"):
     opcoes_conexao = {"check_same_thread": False}
 
 engine = create_engine(DATABASE_URL, connect_args=opcoes_conexao)
+
+
+@event.listens_for(engine, "connect")
+def configurar_conexao(conexao, _registro):
+    if DATABASE_URL.startswith("sqlite"):
+        cursor = conexao.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=10000")
+        cursor.close()
+
+
 SessaoLocal = sessionmaker(bind=engine)
 
 

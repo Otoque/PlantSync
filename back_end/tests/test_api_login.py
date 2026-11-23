@@ -86,6 +86,9 @@ def test_nenhuma_rota_da_api_ficou_fora_das_listas():
     # de auxiliares.py, e assim ninguem esquece de decidir como ela e protegida.
     rotas_do_app = []
     for caminho, metodos in app.openapi()["paths"].items():
+        if caminho.startswith("/api/v1/"):
+            # A API por empresa tem sua própria classificação e ensaio de acesso.
+            continue
         for metodo in metodos:
             rotas_do_app.append((metodo.upper(), caminho))
     assert sorted(rotas_do_app) == sorted(ROTAS_ABERTAS + ROTAS_PROTEGIDAS + ROTAS_COM_CHAVE)
