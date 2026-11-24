@@ -50,3 +50,10 @@ desktop.ini
 # Configuração do QR para a rede local e trajetos escolhidos para divulgação
 /front_end/qr-publico.local.json
 /front_end/mapas/publicos/
+
+# Logs e arquivos temporarios
+*.log
+*.swp
+*.tmp
+.coverage
+htmlcov/
