@@ -5,7 +5,7 @@
 ## Identificação
 
 - Equipe:
-  - Davi Clemente — o histórico usa `cldavii` como autor, mas a conta GitHub não foi vinculada ao commit; perfil a confirmar
+  - Davi Clemente — [@cldavii](https://github.com/cldavii)
   - Nicolas Tavares — [@Otoque](https://github.com/Otoque), confirmado pelo commit inicial do repositório ([commit](https://github.com/Otoque/PlantSync/commit/dcb6fd8e9d71bc032a85e08f353253dd503a00a5))
   - Pedro Valença — [@pedrohmvalenca](https://github.com/pedrohmvalenca)
   - Jorge Figueiredo — perfil GitHub a informar
