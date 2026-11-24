@@ -63,12 +63,12 @@ O código oficial `CP5TN0` já está configurado nos comandos. Confira os result
 
 ## Evidências e itens para concluir
 
-As evidências antigas disponíveis estão nomeadas com outro código de missão; reexecute os testes com `CP5TN0` e substitua-as. Não as trate como prova atual sem verificar a execução. Grave também os vídeos requeridos (cada um com até 90 segundos), mostrando o fluxo real na placa/dispositivo e o teste de cada controle. Nomeie os vídeos com o código oficial. Não simule placa nem invente resultados: documente no vídeo qualquer limitação do ambiente.
+Os testes automatizados foram executados em 24/11/2026 contra o backend local, com banco e chave TOTP temporários. As saídas aprovadas estão em `evidencias/teste_2fa_CP5TN0.txt` e `evidencias/teste_idor_CP5TN0.txt`; os arquivos antigos com outro código foram mantidos como registros anteriores. Ainda falta gravar os vídeos requeridos (cada um com até 90 segundos), mostrando o fluxo real na placa/dispositivo e o teste de cada controle. Nomeie os vídeos com `CP5TN0`. Não simule placa nem invente resultados: documente no vídeo qualquer limitação do ambiente.
 
 Antes da entrega:
 
 1. confirmar os perfis GitHub individuais ainda não informados;
-2. executar os dois testes e substituir as evidências por saídas reais sem segredos;
+2. revisar as evidências atuais e garantir que não contenham segredos;
 3. gravar e incluir os vídeos curtos de demonstração;
 4. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
 5. criar a tag `entrega-final` após a revisão da equipe.
