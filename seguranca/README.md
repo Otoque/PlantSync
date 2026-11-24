@@ -12,7 +12,6 @@
   - Ygor Sampaio — perfil GitHub a informar
 - Professor: Ronierison Maciel
 - Código oficial da missão: `CP5TN0`
-- Repositório: [github.com/Otoque/PlantSync](https://github.com/Otoque/PlantSync)
 - Branch avaliada: `masterv2`
 
 ## Sistema e arquitetura
@@ -27,7 +26,7 @@ PlantSync é uma aplicação de rastreabilidade de lotes agrícolas. O frontend 
 - **Controle:** TOTP RFC 6238; segredo cifrado em repouso com Fernet; códigos de recuperação armazenados como hashes e consumidos uma vez; token MFA temporário não serve como token de acesso; replay de TOTP é rejeitado.
 - **Uso:** usuário autenticado solicita setup, cadastra a URI/QR em app autenticador e confirma um OTP; o frontend mostra os códigos de recuperação uma única vez. Login protegido exige verificação do segundo fator.
 - **Teste:** `testes/test_2fa_otp.py` exercita o estado sem 2FA, ativação, ausência/erro de OTP, sucesso, replay, token MFA e recuperação descartável.
-- **Limitação:** ativação é opcional por conta; não há política global que obrigue todas as contas a cadastrar 2FA. O vídeo de uso deve ser gravado pela equipe.
+- **Limitação:** ativação é opcional por conta; não há política global que obrigue todas as contas a cadastrar 2FA.
 
 ### Isolamento multiempresa (IDOR)
 
@@ -63,13 +62,12 @@ O código oficial `CP5TN0` já está configurado nos comandos. Confira os result
 
 ## Evidências e itens para concluir
 
-Os testes automatizados foram executados em 24/11/2026 contra o backend local, com banco e chave TOTP temporários. As saídas aprovadas estão em `evidencias/teste_2fa_CP5TN0.txt` e `evidencias/teste_idor_CP5TN0.txt`; os arquivos antigos com outro código foram mantidos como registros anteriores. Ainda falta gravar os vídeos requeridos (cada um com até 90 segundos), mostrando o fluxo real na placa/dispositivo e o teste de cada controle. Nomeie os vídeos com `CP5TN0`. Não simule placa nem invente resultados: documente no vídeo qualquer limitação do ambiente.
+Os testes automatizados foram executados em 24/11/2026 contra o backend local, com banco e chave TOTP temporários. As saídas aprovadas estão em `evidencias/teste_2fa_CP5TN0.txt` e `evidencias/teste_idor_CP5TN0.txt`; os arquivos antigos com outro código foram mantidos como registros anteriores.
 
 Antes da entrega:
 
 1. confirmar os perfis GitHub individuais ainda não informados;
 2. revisar as evidências atuais e garantir que não contenham segredos;
-3. gravar e incluir os vídeos curtos de demonstração;
 4. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
 5. criar a tag `entrega-final` após a revisão da equipe.
 
@@ -78,4 +76,4 @@ Antes da entrega:
 - `modelo-ameacas.md`: ativos, ameaças, controles e riscos remanescentes.
 - `uso-de-ia.md`: ferramentas usadas e revisão humana necessária.
 - `testes/`: scripts de validação automatizada.
-- `evidencias/`: saídas e gravações reais da equipe.
+- `evidencias/`: saídas reais dos testes.
