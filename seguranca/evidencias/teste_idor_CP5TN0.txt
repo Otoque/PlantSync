@@ -1,12 +1,12 @@
-2026-11-24 14:02:19,801 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
+2026-11-24 14:30:56,586 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
 [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:02:19,804 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
+2026-11-24 14:30:56,590 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
 [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:02:19,808 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
+2026-11-24 14:30:56,594 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
 [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:02:19,811 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
+2026-11-24 14:30:56,597 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
 [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
-2026-11-24 14:02:19,817 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
+2026-11-24 14:30:56,603 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
 [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
 === TESTE IDOR (ISOLAMENTO MULTIEMPRESA) | MISSAO: CP5TN0 ===
 

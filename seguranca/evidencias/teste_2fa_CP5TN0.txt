@@ -1,12 +1,12 @@
-2026-11-24 14:02:18,835 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=segundo_fator_ausente | user_id=2 | resource_id=None
+2026-11-24 14:30:55,590 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=segundo_fator_ausente | user_id=2 | resource_id=None
 [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=segundo_fator_ausente | user_id=2 | resource_id=None
-2026-11-24 14:02:18,839 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_invalido_ou_expirado | user_id=2 | resource_id=None
+2026-11-24 14:30:55,596 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_invalido_ou_expirado | user_id=2 | resource_id=None
 [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_invalido_ou_expirado | user_id=2 | resource_id=None
-2026-11-24 14:02:18,998 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_ja_utilizado | user_id=2 | resource_id=None
+2026-11-24 14:30:55,763 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_ja_utilizado | user_id=2 | resource_id=None
 [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_otp_ja_utilizado | user_id=2 | resource_id=None
-2026-11-24 14:02:19,000 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][AUTH] motivo=tentativa_uso_mfa_token_como_access_token | user_id=None | resource_id=None
+2026-11-24 14:30:55,766 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][AUTH] motivo=tentativa_uso_mfa_token_como_access_token | user_id=None | resource_id=None
 [MISSAO:CP5TN0][BLOQUEIO][AUTH] motivo=tentativa_uso_mfa_token_como_access_token | user_id=None | resource_id=None
-2026-11-24 14:02:19,158 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_recuperacao_ja_utilizado | user_id=2 | resource_id=None
+2026-11-24 14:30:55,932 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_recuperacao_ja_utilizado | user_id=2 | resource_id=None
 [MISSAO:CP5TN0][BLOQUEIO][2FA] motivo=codigo_recuperacao_ja_utilizado | user_id=2 | resource_id=None
 === TESTE 2FA (TOTP + RECOVERY) | MISSAO: CP5TN0 ===
 [1] POST /api/v1/login -> Status: 200
