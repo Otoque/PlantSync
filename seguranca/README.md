@@ -66,9 +66,9 @@ Os testes automatizados foram executados em 24/11/2026 contra o backend local, c
 
 Antes da entrega:
 
-2. revisar as evidências atuais e garantir que não contenham segredos;
-4. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
-5. criar a tag `entrega-final` após a revisão da equipe.
+1. revisar as evidências atuais e garantir que não contenham segredos;
+2. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
+3. criar a tag `entrega-final` após a revisão da equipe.
 
 ## Arquivos
 
