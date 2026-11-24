@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, select, update
 
 from models.operacao import FontePosicao, LoteOperacional, Parada, Permanencia, PosicaoViagem, Viagem
+from security.audit_log import log_security_block
 from services.acessos import exigir
 from services.datas import agora_utc
 from services.operacao import mover, obter_fluxo, papel_permitido, permanencias
@@ -35,9 +36,21 @@ def viagem_acessivel(sessao, ctx, codigo, permissao="consultar", escrita=False):
     exigir_escopo(ctx, "viagem", codigo)
     viagem = sessao.scalar(select(Viagem).where(Viagem.codigo == codigo))
     if viagem is None:
+        log_security_block(
+            "IDOR",
+            "tentativa_acesso_viagem_inexistente",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=codigo,
+        )
         erro(404, "Viagem indisponível.")
     proprie = viagem_propria(ctx, viagem)
     if not proprie and (escrita or not lotes_da_rota(sessao, ctx, viagem)):
+        log_security_block(
+            "IDOR",
+            "tentativa_acesso_viagem_alheia",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=codigo,
+        )
         erro(404, "Viagem indisponível.")
     return viagem
 

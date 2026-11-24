@@ -10,6 +10,7 @@ from models.operacao import (
     Ambiente, CompartilhamentoLote, EventoLote, FluxoVersao, LoteOperacional,
     Parada, Permanencia, Viagem,
 )
+from security.audit_log import log_security_block
 from services.acessos import exigir
 from services.catalogo import fruta_disponivel
 from services.datas import agora_utc
@@ -69,6 +70,12 @@ def exigir_acao_fluxo(configuracao, papel, acao):
 def ambiente_da_empresa(sessao, ctx, ambiente_id, tipo=None):
     ambiente = sessao.get(Ambiente, ambiente_id) if ambiente_id is not None else None
     if ambiente is None or ambiente.empresa_id != ctx.empresa.id:
+        log_security_block(
+            "IDOR",
+            "tentativa_acesso_ambiente_alheio_ou_inexistente",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=ambiente_id,
+        )
         erro(404, "Ambiente indisponível.")
     if tipo and ambiente.tipo != tipo:
         erro(422, "O tipo de ambiente é incompatível com esta etapa.")

@@ -16,6 +16,7 @@ from models.operacao import (
     Ambiente, FonteSensor, LaudoOperacional, LeituraFonte, LoteOperacional, Ocorrencia,
     Permanencia, RevisaoLaudo, Viagem, VinculoSensor,
 )
+from security.audit_log import log_security_block
 from services import analise, thingspeak
 from services.acessos import exigir
 from services.datas import agora_utc, hora_recife, para_utc
@@ -72,6 +73,12 @@ def sensor_da_empresa(sessao, ctx, sensor_id):
     exigir_escopo(ctx, "sensor", sensor_id)
     fonte = sessao.get(FonteSensor, sensor_id)
     if fonte is None or fonte.empresa_id != ctx.empresa.id:
+        log_security_block(
+            "IDOR",
+            "tentativa_acesso_sensor_alheio_ou_inexistente",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=sensor_id,
+        )
         erro(404, "Sensor indisponível.")
     return fonte
 

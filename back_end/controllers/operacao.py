@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from models.banco import abrir_sessao
 from models.limites import TEMP_FISICA_MAX, TEMP_FISICA_MIN
 from models.operacao import Ambiente, FonteSensor, LoteOperacional, Ocorrencia
+from security.audit_log import log_security_block
 from services import operacao as fluxo, operacao_monitoramento as monitor, operacao_viagens as viagens
 from services.acessos import Contexto, exigir, obter_contexto
 from services.datas import agora_utc
@@ -516,10 +517,22 @@ def tratar_alerta(alerta_id: int, dados: TratarOcorrencia, sessao: Banco, ctx: C
     exigir(ctx, "operar")
     alerta = sessao.get(Ocorrencia, alerta_id)
     if alerta is None:
+        log_security_block(
+            "IDOR",
+            "tentativa_tratar_alerta_inexistente",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=alerta_id,
+        )
         erro(404, "Ocorrência indisponível.")
     lote = sessao.get(LoteOperacional, alerta.lote_id)
     _, comp = lote_acessivel(sessao, ctx, lote.codigo, "operar")
     if not monitor.alerta_visivel(alerta, comp):
+        log_security_block(
+            "IDOR",
+            "tentativa_tratar_alerta_alheio",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=alerta_id,
+        )
         erro(404, "Ocorrência indisponível.")
 
     def aplicar():

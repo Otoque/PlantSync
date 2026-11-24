@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from models.banco import abrir_sessao
 from models.contas import (
+    CodigoRecuperacaoConta,
     Conta,
     ContaInicial,
     ConviteConta,
@@ -23,9 +24,12 @@ from models.contas import (
     Integracao,
     PermissoesPapel,
     SessaoConta,
+    SessaoMfaConta,
     TentativaLogin,
     VinculoConta,
 )
+from security import totp_service
+from security.audit_log import log_security_block
 from services import autenticacao
 from services.datas import agora_utc, formatar_utc, para_utc
 
@@ -96,6 +100,8 @@ def vinculos_ativos(sessao, conta_id):
 
 def sessao_autenticada(sessao, credenciais):
     if credenciais is None or not credenciais.credentials.startswith(PREFIXO_SESSAO):
+        if credenciais is not None and credenciais.credentials.startswith(totp_service.PREFIXO_MFA):
+            log_security_block("AUTH", "tentativa_uso_mfa_token_como_access_token")
         raise erro_autenticacao()
     sessao_conta = sessao.get(SessaoConta, autenticacao.hash_do_token(credenciais.credentials), populate_existing=True)
     if sessao_conta is None or sessao_conta.expira_em <= agora_utc():
@@ -148,6 +154,7 @@ def obter_contexto(request: Request, credenciais=Depends(esquema_bearer), sessao
         if empresa.id == empresa_id:
             permissoes = permissoes_do_papel(sessao, empresa.id, vinculo.papel)
             return Contexto(conta, empresa, vinculo.papel, permissoes)
+    log_security_block("IDOR", "tentativa_acesso_empresa_sem_vinculo", user_id=conta.id, resource_id=empresa_id)
     raise HTTPException(403, "Sua conta não tem vínculo ativo com a empresa solicitada.")
 
 
@@ -196,7 +203,25 @@ def bloquear_conta(sessao, conta_id):
     return sessao.get(Conta, conta_id, populate_existing=True)
 
 
-def fazer_login(sessao, usuario, senha, origem):
+def gerar_resposta_sessao(sessao, conta):
+    agora = agora_utc()
+    token = PREFIXO_SESSAO + secrets.token_urlsafe(32)
+    expira_em = agora + autenticacao.VALIDADE_DO_TOKEN
+    sessao.execute(delete(SessaoConta).where(SessaoConta.expira_em <= agora))
+    sessao.add(SessaoConta(token_hash=autenticacao.hash_do_token(token), conta_id=conta.id, expira_em=expira_em))
+    sessao.commit()
+    return {
+        "token": token,
+        "access_token": token,
+        "token_type": "bearer",
+        "expira_em": formatar_utc(expira_em),
+        "usuario": usuario_json(conta),
+        "empresas": [vinculo_json(empresa, vinculo.papel, permissoes_do_papel(sessao, empresa.id, vinculo.papel))
+                     for empresa, vinculo in vinculos_ativos(sessao, conta.id)],
+    }
+
+
+def fazer_login(sessao, usuario, senha, origem, otp_code=None, recovery_code=None):
     usuario = usuario.strip()
     reservar_tentativa_login(sessao, origem, usuario)
     conta = sessao.scalar(select(Conta).where(identidade_de_login(usuario)))
@@ -210,19 +235,60 @@ def fazer_login(sessao, usuario, senha, origem):
     conta = bloquear_conta(sessao, conta.id)
     if not conta.ativo or conta.senha_hash != hash_validado:
         raise erro_autenticacao(autenticacao.MENSAGEM_LOGIN_INVALIDO)
-    agora = agora_utc()
-    token = PREFIXO_SESSAO + secrets.token_urlsafe(32)
-    expira_em = agora + autenticacao.VALIDADE_DO_TOKEN
-    sessao.execute(delete(SessaoConta).where(SessaoConta.expira_em <= agora))
-    sessao.add(SessaoConta(token_hash=autenticacao.hash_do_token(token), conta_id=conta.id, expira_em=expira_em))
+
+    if conta.totp_enabled:
+        if otp_code:
+            ok, reason = totp_service.verify_user_totp(sessao, conta, otp_code)
+            if not ok:
+                log_security_block("2FA", reason, user_id=conta.id)
+                raise HTTPException(401, "Falha na verificação 2FA.")
+            return gerar_resposta_sessao(sessao, conta)
+        elif recovery_code:
+            ok, reason = totp_service.verify_and_consume_recovery_code(sessao, conta, recovery_code)
+            if not ok:
+                log_security_block("2FA", reason, user_id=conta.id)
+                raise HTTPException(401, "Falha na verificação 2FA.")
+            return gerar_resposta_sessao(sessao, conta)
+        else:
+            mfa_token = totp_service.criar_mfa_token(sessao, conta)
+            return {
+                "mfa_required": True,
+                "mfa_token": mfa_token,
+            }
+
+    return gerar_resposta_sessao(sessao, conta)
+
+
+def verificar_2fa_login(sessao, mfa_token, otp_code=None, recovery_code=None):
+    if not mfa_token:
+        log_security_block("2FA", "mfa_token_ausente")
+        raise HTTPException(401, "Sessão MFA inválida.")
+
+    token_hash = autenticacao.hash_do_token(mfa_token)
+    sessao_mfa = sessao.get(SessaoMfaConta, token_hash)
+    if sessao_mfa is None or sessao_mfa.expira_em <= agora_utc():
+        log_security_block("2FA", "mfa_token_invalido_ou_expirado")
+        raise HTTPException(401, "Sessão MFA inválida.")
+
+    conta = sessao.get(Conta, sessao_mfa.conta_id)
+    if conta is None or not conta.ativo:
+        log_security_block("2FA", "conta_invalida_ou_inativa")
+        raise HTTPException(401, "Conta associada inválida ou inativa.")
+
+    if otp_code:
+        ok, reason = totp_service.verify_user_totp(sessao, conta, otp_code)
+    elif recovery_code:
+        ok, reason = totp_service.verify_and_consume_recovery_code(sessao, conta, recovery_code)
+    else:
+        ok, reason = False, "segundo_fator_ausente"
+
+    if not ok:
+        log_security_block("2FA", reason, user_id=conta.id)
+        raise HTTPException(401, "Falha na verificação 2FA.")
+
+    sessao.delete(sessao_mfa)
     sessao.commit()
-    return {
-        "token": token,
-        "expira_em": formatar_utc(expira_em),
-        "usuario": usuario_json(conta),
-        "empresas": [vinculo_json(empresa, vinculo.papel, permissoes_do_papel(sessao, empresa.id, vinculo.papel))
-                     for empresa, vinculo in vinculos_ativos(sessao, conta.id)],
-    }
+    return gerar_resposta_sessao(sessao, conta)
 
 
 def validar_senha(senha):
@@ -358,6 +424,12 @@ def alterar_membro(sessao, contexto, conta_id, alteracoes):
     empresa = bloquear_administracao(sessao, contexto)
     vinculo = sessao.get(VinculoConta, (conta_id, empresa.id))
     if vinculo is None:
+        log_security_block(
+            "IDOR",
+            "tentativa_alterar_membro_outra_empresa",
+            user_id=contexto.conta.id if contexto.conta else None,
+            resource_id=conta_id,
+        )
         raise HTTPException(404, "Participante não encontrado nesta empresa.")
     conta = sessao.get(Conta, conta_id)
     anterior = {"papel": vinculo.papel, "ativo": vinculo.ativo}

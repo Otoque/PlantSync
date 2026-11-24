@@ -10,7 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models.banco import abrir_sessao
-from models.contas import ConviteConta, Empresa, EventoAcesso, Integracao, SessaoConta
+from models.contas import Conta, ConviteConta, Empresa, EventoAcesso, Integracao, SessaoConta
+from security import totp_service
+from security.audit_log import log_security_block
 from services import acessos
 from services.datas import agora_utc, formatar_utc
 
@@ -33,6 +35,18 @@ class Entrada(BaseModel):
 class Login(Entrada):
     usuario: Annotated[str, StringConstraints(max_length=254)]
     senha: Senha
+    otp_code: Annotated[str | None, StringConstraints(min_length=1, max_length=10)] = None
+    recovery_code: Annotated[str | None, StringConstraints(min_length=1, max_length=32)] = None
+
+
+class DoisFatoresVerificacao(Entrada):
+    mfa_token: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+    otp_code: Annotated[str | None, StringConstraints(min_length=1, max_length=10)] = None
+    recovery_code: Annotated[str | None, StringConstraints(min_length=1, max_length=32)] = None
+
+
+class ConfirmarDoisFatores(Entrada):
+    otp_code: Annotated[str, StringConstraints(min_length=6, max_length=10)]
 
 
 class TrocaSenha(Entrada):
@@ -93,7 +107,55 @@ def alteracoes_enviadas(dados):
 def login(dados: Login, request: Request, response: Response, sessao: Session = Depends(abrir_sessao)):
     response.headers["Cache-Control"] = "no-store"
     origem = request.client.host if request.client else "desconhecida"
-    return acessos.fazer_login(sessao, dados.usuario, dados.senha, origem)
+    return acessos.fazer_login(sessao, dados.usuario, dados.senha, origem, dados.otp_code, dados.recovery_code)
+
+
+@router.post("/2fa/verify-login")
+def verificar_login_2fa(
+    dados: DoisFatoresVerificacao,
+    response: Response,
+    sessao: Session = Depends(abrir_sessao),
+):
+    response.headers["Cache-Control"] = "no-store"
+    return acessos.verificar_2fa_login(sessao, dados.mfa_token, dados.otp_code, dados.recovery_code)
+
+
+@router.post("/2fa/setup")
+def configurar_2fa(
+    conta: Conta = Depends(acessos.obter_conta),
+    sessao: Session = Depends(abrir_sessao),
+):
+    return totp_service.setup_user_2fa(sessao, conta)
+
+
+@router.post("/2fa/confirm")
+def confirmar_2fa(
+    dados: ConfirmarDoisFatores,
+    conta: Conta = Depends(acessos.obter_conta),
+    sessao: Session = Depends(abrir_sessao),
+):
+    ok, reason = totp_service.confirm_user_2fa(sessao, conta, dados.otp_code)
+    if not ok:
+        log_security_block("2FA_SETUP", reason, user_id=conta.id)
+        raise HTTPException(400, "Código OTP inválido.")
+    return {"status": "2FA ativado com sucesso"}
+
+
+@router.get("/2fa/status")
+def status_2fa(conta: Conta = Depends(acessos.obter_conta)):
+    return {"totp_enabled": bool(conta.totp_enabled)}
+
+
+@router.post("/2fa/desativar")
+def desativar_2fa(
+    conta: Conta = Depends(acessos.obter_conta),
+    sessao: Session = Depends(abrir_sessao),
+):
+    conta.totp_enabled = False
+    conta.totp_secret_encrypted = None
+    conta.totp_last_timestep = None
+    sessao.commit()
+    return {"status": "2FA desativado com sucesso"}
 
 
 @router.post("/logout")

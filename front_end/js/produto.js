@@ -26,6 +26,7 @@ let cleanupView;
 let request;
 let toastTimer;
 let loginNotice = '';
+let pendingMfaToken = '';
 let search = '';
 let phaseFilter = '';
 const lotPageSize = 100;
@@ -115,7 +116,8 @@ function shell(content, active, title) {
 
 function login() {
   const redirect = route()[0] === 'aceitar-convite';
-  commit(`<main class="login-page" id="conteudo" tabindex="-1"><section class="login-story"><a href="#login" class="brand">${brand}</a><div><h1>Cuidado em cada etapa da carga.</h1><p>Da câmara fria à entrega, acompanhe as condições e as pessoas responsáveis pelo caminho.</p><div class="login-illustration"><strong>Da origem ao destino</strong><div class="login-line"></div><div class="actions login-stages"><small>Preparação</small><span>→</span><small>Transporte</small><span>→</span><small>Entrega</small></div></div></div><small>Rastreabilidade para quem produz, transporta e recebe.</small></section><section class="login-side"><form class="login-form" data-form="login"><h2>Bem-vindo de volta.</h2><p class="muted">Entre para acompanhar sua operação.</p><label class="field">Usuário ou e-mail<input name="usuario" required autocomplete="username"></label><label class="field">Senha<input name="senha" type="password" required autocomplete="current-password"></label><button type="submit" class="btn primary">Entrar →</button><p class="error-message" role="alert">${esc(loginNotice)}</p>${redirect ? button('Aceitar convite','accept-invite') : button('Tenho um convite','accept-invite',null,'text')}</form></section></main>`);
+  const verification = Boolean(pendingMfaToken);
+  commit(`<main class="login-page" id="conteudo" tabindex="-1"><section class="login-story"><a href="#login" class="brand">${brand}</a><div><h1>Cuidado em cada etapa da carga.</h1><p>Da câmara fria à entrega, acompanhe as condições e as pessoas responsáveis pelo caminho.</p><div class="login-illustration"><strong>Da origem ao destino</strong><div class="login-line"></div><div class="actions login-stages"><small>Preparação</small><span>→</span><small>Transporte</small><span>→</span><small>Entrega</small></div></div></div><small>Rastreabilidade para quem produz, transporta e recebe.</small></section><section class="login-side"><form class="login-form" data-form="login"><h2>${verification ? 'Confirme sua identidade.' : 'Bem-vindo de volta.'}</h2><p class="muted">${verification ? 'Informe o código do aplicativo autenticador ou um código de recuperação.' : 'Entre para acompanhar sua operação.'}</p>${verification ? `<input type="hidden" name="mfa_token" value="${esc(pendingMfaToken)}"><label class="field">Código de verificação<input name="otp_code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label><label class="field">Código de recuperação (opcional)<input name="recovery_code" autocomplete="off" maxlength="32"></label><button type="submit" class="btn primary">Verificar →</button><button type="button" class="btn text" data-action="cancel-mfa">Voltar ao login</button>` : `<label class="field">Usuário ou e-mail<input name="usuario" required autocomplete="username"></label><label class="field">Senha<input name="senha" type="password" required autocomplete="current-password"></label><button type="submit" class="btn primary">Entrar →</button>`}<p class="error-message" role="alert">${esc(loginNotice)}</p>${!verification ? (redirect ? button('Aceitar convite','accept-invite') : button('Tenho um convite','accept-invite',null,'text')) : ''}</form></section></main>`);
 }
 
 function metric(label, value, accent=false) {
@@ -567,6 +569,14 @@ async function handleAction(action, id, opener) {
 }
 
 function finishLogin(data) {
+  if (data?.mfa_required && data.mfa_token) {
+    pendingMfaToken = data.mfa_token;
+    loginNotice = '';
+    login();
+    app.querySelector('[name="otp_code"]')?.focus();
+    return;
+  }
+  pendingMfaToken = '';
   const companies = list(data.empresas);
   setSession({...data,companyId:companies[0]?.id ?? null});
   context = undefined;
@@ -586,6 +596,12 @@ document.addEventListener('click', event => {
   const control = event.target.closest('button');
   if (!control) return;
   const {action,id,detail,settings,view} = control.dataset;
+  if (action === 'cancel-mfa') {
+    pendingMfaToken = '';
+    loginNotice = '';
+    login();
+    return;
+  }
   if (detail) {
     detailTab = detail;
     readingsOffset = null;
@@ -645,7 +661,13 @@ document.addEventListener('submit', async event => {
   if (submit.disabled) return;
   submit.disabled = true;
   errorElement.textContent = '';
-  try { finishLogin(await post('/login',Object.fromEntries(new FormData(form)),{anonymous:true})); }
+  try {
+    const values = Object.fromEntries([...new FormData(form)].filter(([,value]) => value !== ''));
+    const result = pendingMfaToken
+      ? await post('/2fa/verify-login',values,{anonymous:true,withoutCompany:true})
+      : await post('/login',values,{anonymous:true});
+    finishLogin(result);
+  }
   catch (error) { errorElement.textContent = error.message; }
   finally { submit.disabled = false; }
 });

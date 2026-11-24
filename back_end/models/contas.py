@@ -31,6 +31,11 @@ class Conta(Base):
     ativo: Mapped[bool] = mapped_column(default=True)
     plataforma: Mapped[bool] = mapped_column(default=False)
 
+    # 2FA (TOTP)
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(default=None)
+    totp_enabled: Mapped[bool] = mapped_column(default=False)
+    totp_last_timestep: Mapped[int | None] = mapped_column(default=None)
+
 
 class ContaInicial(Base):
     __tablename__ = "conta_inicial"
@@ -65,6 +70,23 @@ class SessaoConta(Base):
 
     token_hash: Mapped[str] = mapped_column(primary_key=True)
     conta_id: Mapped[int] = mapped_column(ForeignKey("contas.id"), index=True)
+    expira_em: Mapped[datetime] = mapped_column(index=True)
+
+
+class CodigoRecuperacaoConta(Base):
+    __tablename__ = "codigos_recuperacao_conta"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    conta_id: Mapped[int] = mapped_column(ForeignKey("contas.id", ondelete="CASCADE"), index=True)
+    codigo_hash: Mapped[str] = mapped_column(index=True)
+    usado_em: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class SessaoMfaConta(Base):
+    __tablename__ = "sessoes_mfa_conta"
+
+    token_hash: Mapped[str] = mapped_column(primary_key=True)
+    conta_id: Mapped[int] = mapped_column(ForeignKey("contas.id", ondelete="CASCADE"), index=True)
     expira_em: Mapped[datetime] = mapped_column(index=True)
 
 

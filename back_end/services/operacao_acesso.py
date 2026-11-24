@@ -13,6 +13,7 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from models.contas import Empresa
 from models.operacao import ComandoOperacional, CompartilhamentoLote, EventoLote, LoteOperacional
+from security.audit_log import log_security_block
 from services.acessos import exigir
 from services.datas import agora_utc, para_utc
 
@@ -208,16 +209,34 @@ def lote_acessivel(sessao, ctx, codigo, permissao="consultar"):
     exigir(ctx, "consultar" if recebe_por_concessao else permissao)
     lotes = lotes_visiveis(sessao, ctx, codigo=codigo, limit=1, somente_consulta=False)
     if not lotes:
+        log_security_block(
+            "IDOR",
+            "tentativa_acesso_lote_alheio_ou_inexistente",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=codigo,
+        )
         erro(404, "Lote indisponível.")
     lote = lotes[0]
     comp = concessao(sessao, ctx, lote)
     if permissao != "consultar" and comp and permissao not in comp.direitos:
+        log_security_block(
+            "IDOR",
+            "tentativa_acao_lote_sem_permissao",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=codigo,
+        )
         erro(403, "A ação não faz parte dos direitos concedidos neste lote.")
     return lote, comp
 
 
 def dono(ctx, lote):
     if ctx.empresa.id != lote.empresa_id or ctx.papel == "cliente":
+        log_security_block(
+            "IDOR",
+            "tentativa_acao_lote_titular_alheio",
+            user_id=ctx.conta.id if ctx.conta else None,
+            resource_id=lote.codigo,
+        )
         erro(403, "A ação exige autorização da empresa titular do lote.")
 
 

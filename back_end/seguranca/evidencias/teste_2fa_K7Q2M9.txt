@@ -1,0 +1,27 @@
+2026-11-23 21:41:29,090 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=segundo_fator_ausente | user_id=2 | resource_id=None
+[MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=segundo_fator_ausente | user_id=2 | resource_id=None
+2026-11-23 21:41:29,098 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_otp_invalido_ou_expirado | user_id=2 | resource_id=None
+[MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_otp_invalido_ou_expirado | user_id=2 | resource_id=None
+2026-11-23 21:41:29,312 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_otp_ja_utilizado | user_id=2 | resource_id=None
+[MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_otp_ja_utilizado | user_id=2 | resource_id=None
+2026-11-23 21:41:29,316 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][AUTH] motivo=tentativa_uso_mfa_token_como_access_token | user_id=None | resource_id=None
+[MISSAO:K7Q2M9][BLOQUEIO][AUTH] motivo=tentativa_uso_mfa_token_como_access_token | user_id=None | resource_id=None
+2026-11-23 21:41:29,520 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_recuperacao_ja_utilizado | user_id=2 | resource_id=None
+[MISSAO:K7Q2M9][BLOQUEIO][2FA] motivo=codigo_recuperacao_ja_utilizado | user_id=2 | resource_id=None
+=== TESTE 2FA (TOTP + RECOVERY) | MISSAO: K7Q2M9 ===
+[1] POST /api/v1/login -> Status: 200
+[ANTES] Login com senha sem OTP aceito diretamente (2FA ainda desativado).
+[Setup] POST /api/v1/2fa/setup -> Status: 200
+[Setup] Provisioning URI obtida: otpauth://totp/PlantSync:operador_2...
+[Setup] Códigos de recuperação gerados: 8 códigos.
+[Confirm] POST /api/v1/2fa/confirm -> Status: 200
+[DEPOIS] 2FA ativado com sucesso para a conta de teste.
+[2a] POST /api/v1/login (com 2FA ativo) -> Status: 200, mfa_required: True
+[2b] POST /api/v1/2fa/verify-login sem OTP (esperado 401) -> 401
+[3] POST /api/v1/2fa/verify-login OTP incorreto (esperado 401) -> 401
+[4] POST /api/v1/2fa/verify-login OTP válido (esperado 200) -> 200
+[5] Contorno - reuso de OTP ja usado/replay (esperado 401) -> 401
+[6] Contorno - usar mfa_token como access_token (esperado 401) -> 401
+[7a] Recovery code 1o uso (esperado 200) -> 200
+[7b] Recovery code 2o uso / ja consumido (esperado 401) -> 401
+=== TODOS OS TESTES DE 2FA PASSARAM COM SUCESSO! ===

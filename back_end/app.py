@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 # O FastAPI usa o HTTPException do Starlette por baixo. Tratando o do Starlette,
 # pegamos tambem o 404 de rota inexistente, que o proprio FastAPI levanta.
 from starlette.exceptions import HTTPException
+from sqlalchemy import text
 
 from config import (
     CORS_ORIGENS,
@@ -46,11 +47,26 @@ from services.erros import (
 from services.frutas import cadastrar_frutas_iniciais
 
 
+def garantir_colunas_2fa(eng):
+    if eng.dialect.name == "sqlite":
+        with eng.begin() as con:
+            tabelas = [r[0] for r in con.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
+            if "contas" in tabelas:
+                colunas = [r[1] for r in con.execute(text("PRAGMA table_info(contas)")).fetchall()]
+                if "totp_secret_encrypted" not in colunas:
+                    con.execute(text("ALTER TABLE contas ADD COLUMN totp_secret_encrypted TEXT"))
+                if "totp_enabled" not in colunas:
+                    con.execute(text("ALTER TABLE contas ADD COLUMN totp_enabled BOOLEAN DEFAULT 0 NOT NULL"))
+                if "totp_last_timestep" not in colunas:
+                    con.execute(text("ALTER TABLE contas ADD COLUMN totp_last_timestep INTEGER"))
+
+
 # Formato pedido pelo FastAPI para rodar algo quando o servidor liga:
 # o que vem antes do yield roda ao ligar; o que viesse depois rodaria ao desligar.
 @asynccontextmanager
 async def ao_iniciar(app):
     """Cria as tabelas e as frutas iniciais e prepara o usuario de login."""
+    garantir_colunas_2fa(engine)
     Base.metadata.create_all(engine)
     with SessaoLocal() as sessao:
         cadastrar_frutas_iniciais(sessao)
