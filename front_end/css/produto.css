@@ -160,6 +160,10 @@ td a:hover { text-decoration:underline; }
 .qr-label h3 { margin-bottom:5px; }
 .qr-image { width:100px; height:100px; flex-shrink:0; }
 .qr-image img,.qr-image canvas { width:100px!important; height:100px!important; }
+#totp-enrollment-qr { width:192px; height:192px; margin:16px auto; }
+#totp-enrollment-qr img,#totp-enrollment-qr canvas { width:192px!important; height:192px!important; }
+.recovery-codes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 24px; padding:16px 24px; background:var(--soft); border-radius:12px; }
+.break-all { overflow-wrap:anywhere; }
 .qr-label small { display:block; font-size:10px; }
 .settings-layout { display:grid; grid-template-columns:200px minmax(0,1fr); gap:24px; }
 .settings-menu { display:flex; flex-direction:column; gap:5px; align-self:start; }

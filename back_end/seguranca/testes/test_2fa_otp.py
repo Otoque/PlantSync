@@ -7,12 +7,10 @@ import os
 import sys
 import pyotp
 import requests
+import re
 
 BASE_URL = os.getenv("PLANTSYNC_API_URL", "http://localhost:8000")
-MISSION_CODE = os.getenv("PLANTSYNC_CODIGO_MISSAO", "K7Q2M9")
-
-ADMIN_USER = os.getenv("PLANTSYNC_USUARIO", "usuario")
-ADMIN_PASS = os.getenv("PLANTSYNC_SENHA", "[REMOVIDO]")
+MISSION_CODE = os.getenv("PLANTSYNC_CODIGO_MISSAO", "PENDENTE")
 
 # Usuário de teste exclusivo para 2FA
 TEST_USER = "operador_2fa_teste"
@@ -23,41 +21,22 @@ TEST_EMAIL = "operador_2fa@plantsync.teste"
 class HttpClient:
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
-        self._test_client = None
         try:
-            r = requests.get(f"{self.base_url}/api/saude", timeout=0.3)
-            self._use_requests = True
-        except Exception:
-            self._use_requests = False
-            sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-            from app import app
-            from starlette.testclient import TestClient
-            self._test_client = TestClient(app, base_url=self.base_url)
-
-    def _caminho(self, url: str) -> str:
-        if url.startswith(self.base_url):
-            return url[len(self.base_url):]
-        return url
+            requests.get(f"{self.base_url}/api/saude", timeout=3)
+        except requests.RequestException as exc:
+            raise SystemExit(f"API indisponível em {self.base_url}; inicie o backend antes do teste: {exc}")
 
     def post(self, url: str, **kwargs):
-        if self._use_requests:
-            return requests.post(url, **kwargs)
-        return self._test_client.post(self._caminho(url), **kwargs)
+        return requests.post(url, timeout=15, **kwargs)
 
     def get(self, url: str, **kwargs):
-        if self._use_requests:
-            return requests.get(url, **kwargs)
-        return self._test_client.get(self._caminho(url), **kwargs)
+        return requests.get(url, timeout=15, **kwargs)
 
     def patch(self, url: str, **kwargs):
-        if self._use_requests:
-            return requests.patch(url, **kwargs)
-        return self._test_client.patch(self._caminho(url), **kwargs)
+        return requests.patch(url, timeout=15, **kwargs)
 
     def delete(self, url: str, **kwargs):
-        if self._use_requests:
-            return requests.delete(url, **kwargs)
-        return self._test_client.delete(self._caminho(url), **kwargs)
+        return requests.delete(url, timeout=15, **kwargs)
 
 
 http = HttpClient(BASE_URL)
@@ -100,6 +79,8 @@ def preparar_usuario_teste():
 
 
 def run_tests():
+    if not re.fullmatch(r"[A-Z0-9]{6}", MISSION_CODE) or MISSION_CODE == "PENDENTE":
+        raise SystemExit("Defina PLANTSYNC_CODIGO_MISSAO com o código oficial de 6 caracteres antes de executar.")
     print(f"=== TESTE 2FA (TOTP + RECOVERY) | MISSAO: {MISSION_CODE} ===")
 
     preparar_usuario_teste()

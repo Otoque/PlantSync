@@ -417,6 +417,7 @@ async function loadData(screen, id, signal, modifier) {
     return {report,revisions};
   }
   if (screen === 'configuracoes') {
+    if (preferences === 'perfil') endpoints.twoFactor = '/2fa/status';
     if (permitted('administrar') && preferences === 'equipe') Object.assign(endpoints,{team:'/equipe',invites:'/equipe/convites'});
     if (permitted('administrar') && preferences === 'papeis') endpoints.roles = '/papeis';
     if (permitted('administrar') && preferences === 'empresa') endpoints.enterprise = '/configuracoes/empresa';
@@ -689,6 +690,7 @@ window.addEventListener('plantsync:sessao-expirada', () => {
   load();
 });
 window.addEventListener('plantsync:rastreio', showTracking);
+window.addEventListener('plantsync:2fa-atualizado',()=>load());
 window.addEventListener('plantsync:erro-rastreio',event=>{ toast(event.detail); load(); });
 window.addEventListener('plantsync:posicao-enviada',event=>{ if (route()[0] === 'viagem' && route()[1] === event.detail) load(); });
 modal.addEventListener('close',()=>{

@@ -1,7 +1,0 @@
-=== TESTE IDOR | MISSAO: XXXXXX ===
-[1] User A -> GET /devices/2 (antes: 200 | depois: 403/404): 404
-[2] User A -> PATCH /devices/2/config (antes: 200 | depois: 403/404): 404
-[3] User A -> POST /devices/2/commands (antes: 200 | depois: 403/404): 404
-[4] Contorno owner_id no payload (esperado 403/404): 404
-[5] Dono (User B) -> GET /devices/2 (esperado 200): 404
-[6] Dono (User A) -> GET /devices/1 (esperado 200): 404

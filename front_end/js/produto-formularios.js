@@ -77,6 +77,44 @@ function reveal(modal,title,label,value) {
   };
 }
 
+function showRecoveryCodes(modal,codes) {
+  const content = list(codes).map(code=>`<li><code>${esc(code)}</code></li>`).join('');
+  modal.innerHTML = `<div class="dialog-head"><h2 id="dialog-title">Guarde seus códigos de recuperação</h2><button class="close" data-action="close" aria-label="Fechar">×</button></div><div class="dialog-body"><p>Esta é a única exibição dos códigos. Cada código pode ser usado uma vez. Guarde-os fora deste dispositivo.</p><ol class="recovery-codes">${content}</ol><div class="form-footer"><button type="button" class="btn" data-action="close">Fechar</button><button type="button" class="btn primary" id="copy-recovery-codes">Copiar códigos</button></div></div>`;
+  modal.showModal();
+  modal.querySelector('#copy-recovery-codes').addEventListener('click',async()=>{
+    try { await navigator.clipboard.writeText(list(codes).join('\n')); toast('Códigos copiados. Guarde-os em local seguro.'); }
+    catch { toast('Não foi possível copiar. Anote os códigos antes de fechar.'); }
+  });
+}
+
+async function setupTwoFactor(modal) {
+  const setup = await post('/2fa/setup');
+  const uri = String(setup?.provisioning_uri || '');
+  const codes = list(setup?.recovery_codes);
+  if (!uri || !codes.length) throw new Error('A API não devolveu os dados de configuração do autenticador.');
+  modal.innerHTML = `<div class="dialog-head"><h2 id="dialog-title">Ativar autenticação em dois fatores</h2><button class="close" data-action="close" aria-label="Fechar">×</button></div><form class="dialog-body"><p>Escaneie o QR com seu aplicativo autenticador e informe o código de seis dígitos para confirmar.</p><div id="totp-enrollment-qr" class="qr-image" role="img" aria-label="QR para cadastrar o PlantSync no aplicativo autenticador"></div><details><summary>Não consegue escanear?</summary><p class="break-all"><code>${esc(uri)}</code></p></details><label class="field full">Código do aplicativo<input name="otp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><p class="error-message" role="alert"></p><div class="form-footer"><button type="button" class="btn" data-action="close">Cancelar</button><button type="submit" class="btn primary">Confirmar 2FA</button></div></form>`;
+  modal.showModal();
+  const qr = modal.querySelector('#totp-enrollment-qr');
+  if (globalThis.QRCode) new globalThis.QRCode(qr,{text:uri,width:192,height:192});
+  else qr.textContent = 'Biblioteca de QR indisponível. Use o endereço de configuração abaixo.';
+  modal.querySelector('form').addEventListener('submit',async event=>{
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submit = form.querySelector('[type="submit"]');
+    const error = form.querySelector('[role="alert"]');
+    submit.disabled = true;
+    error.textContent = '';
+    try {
+      await post('/2fa/confirm',{otp_code:new FormData(form).get('otp_code')});
+      showRecoveryCodes(modal,codes);
+      window.dispatchEvent(new Event('plantsync:2fa-atualizado'));
+    } catch (failure) {
+      error.textContent = failure.message;
+      submit.disabled = false;
+    }
+  });
+}
+
 function invitationLink(token) {
   const url = new URL(location.href);
   url.search = '';
@@ -256,6 +294,7 @@ export async function openAction(action,id,environment) {
       break;
     }
     case 'change-password': show({title:'Alterar senha',fields:input('Senha atual','senha_atual',{type:'password',required:true,attrs:'autocomplete="current-password"'})+input('Nova senha','nova_senha',{type:'password',required:true,attrs:'autocomplete="new-password"'}),perform:values=>post('/conta/senha',values,{withoutCompany:true}),done:'Senha alterada.'}); break;
+    case 'setup-2fa': await setupTwoFactor(modal); break;
     case 'edit-profile': {
       const person = profile();
       const timezoneItems = new Set([person.fuso,'America/Sao_Paulo','America/Recife','America/Bahia','America/Manaus','America/Rio_Branco','America/Noronha','UTC']);
@@ -290,7 +329,11 @@ export function settingsView({tab,resources,person,enterprise,permitted}) {
   if (permitted('integrar')) tabs.push(['integracoes','Integrações']);
   if (!tabs.some(([id])=>id===tab)) tab = 'perfil';
   let markup;
-  if (tab === 'perfil') markup = settingsPanel('Meu perfil',info('Nome',person?.nome) + (person?.email ? info('E-mail',person.email) : '') + info('Idioma','Português do Brasil') + info('Fuso horário',person?.fuso?.replaceAll('_',' ')) + info('Avisos de conservação',person?.avisos_conservacao ? 'Ativados' : 'Desativados') + `<div class="actions section-space">${button('Alterar senha','change-password')}${button('Aceitar convite','accept-invite')}</div>`,button('Editar perfil','edit-profile'));
+  if (tab === 'perfil') {
+    const mfaEnabled = resources.twoFactor?.totp_enabled === true;
+    const security = `<section class="section-space"><h3>Autenticação em dois fatores</h3><p>${mfaEnabled ? 'Ativada. O login exige um código do aplicativo autenticador ou um código de recuperação.' : 'Desativada. Configure um aplicativo autenticador para proteger o próximo login.'}</p>${mfaEnabled ? '' : button('Configurar autenticador','setup-2fa')}</section>`;
+    markup = settingsPanel('Meu perfil',info('Nome',person?.nome) + (person?.email ? info('E-mail',person.email) : '') + info('Idioma','Português do Brasil') + info('Fuso horário',person?.fuso?.replaceAll('_',' ')) + info('Avisos de conservação',person?.avisos_conservacao ? 'Ativados' : 'Desativados') + security + `<div class="actions section-space">${button('Alterar senha','change-password')}${button('Aceitar convite','accept-invite')}</div>`,button('Editar perfil','edit-profile'));
+  }
   if (tab === 'empresa') markup = settingsPanel('Identidade da empresa',info('Nome',resources.enterprise?.nome || enterprise.nome)+info('Identificador da empresa',String(enterprise.id))+info('Papel',formRoles.find(([value])=>value===enterprise.papel)?.[1] || enterprise.papel)+info('Permissões',list(enterprise.permissoes).map(value=>accessLabels[value] || value).join(', ')),resources.enterprise ? button('Editar empresa','edit-enterprise') : '');
   if (tab === 'acessos') markup = settingsPanel('Acessos recebidos',table(['Lote','Empresa','Permissões','Situação','Ações'],list(resources.receivedShares).map(share=>`<tr><td>${share.status === 'aceito' ? `<a href="#lote/${key(share.lotId)}">${esc(share.lotId)} ↗</a>` : esc(share.lotId)}</td><td>${esc(share.company)}</td><td>${esc(list(share.rights).map(value=>accessLabels[value] || value).join(', '))}</td><td>${tag(share.status,share.status==='aceito'?'green':'')}</td><td>${share.status === 'pendente' ? button('Aceitar','accept-share',share.id) : ''}</td></tr>`),'Nenhum acesso compartilhado com esta empresa.'));
   if (tab === 'equipe') {
