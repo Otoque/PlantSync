@@ -1,6 +1,6 @@
 # Entrega de segurança — PlantSync
 
-> Os nomes e o código da missão foram informados pela equipe. Handles pessoais ausentes no histórico Git estão marcados para confirmação; não foram inferidos.
+> Código da missão e roster fornecidos pela equipe; perfis conforme o histórico do repositório ou confirmação da equipe.
 
 ## Identificação
 
@@ -8,8 +8,8 @@
   - Davi Clemente — [@cldavii](https://github.com/cldavii)
   - Nicolas Tavares — [@Otoque](https://github.com/Otoque), confirmado pelo commit inicial do repositório ([commit](https://github.com/Otoque/PlantSync/commit/dcb6fd8e9d71bc032a85e08f353253dd503a00a5))
   - Pedro Valença — [@pedrohmvalenca](https://github.com/pedrohmvalenca)
-  - Jorge Figueiredo — perfil GitHub a informar
-  - Ygor Sampaio — perfil GitHub a informar
+  - Jorge Figueredo — [@Jorgefigueredoo](https://github.com/Jorgefigueredoo)
+  - Ygor Sampaio — [@ygorsampaio](https://github.com/ygorsampaio)
 - Professor: Ronierison Maciel
 - Código oficial da missão: `CP5TN0`
 - Branch avaliada: `masterv2`
@@ -66,7 +66,6 @@ Os testes automatizados foram executados em 24/11/2026 contra o backend local, c
 
 Antes da entrega:
 
-1. confirmar os perfis GitHub individuais ainda não informados;
 2. revisar as evidências atuais e garantir que não contenham segredos;
 4. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
 5. criar a tag `entrega-final` após a revisão da equipe.
