@@ -1,0 +1,10 @@
+=== TESTE 2FA (TOTP + RECOVERY) | MISSAO: XXXXXX ===
+[1] POST /auth/login -> 404 {'erro': 'Rota não encontrada.'}
+[2] Sem OTP (esperado 401) -> 404
+[3] OTP incorreto (esperado 401) -> 404
+[4] OTP valido (esperado 200) -> 404
+[5] Contorno - reuso de OTP ja usado (esperado 401) -> 404
+[6] Contorno - usar mfa_token como access_token (esperado 401/403) -> 404
+[7a] Recovery code 1o uso (esperado 200) -> 404
+[7b] Recovery code 2o uso (esperado 401) -> 404
+[8] Dica: para testar codigo vencido, aguarde o ciclo do TOTP expirar e envie o codigo antigo.

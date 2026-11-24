@@ -1,13 +1,3 @@
-2026-11-23 21:41:31,276 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-23 21:41:31,287 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-23 21:41:31,297 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-23 21:41:31,307 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
-[MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
-2026-11-23 21:41:31,323 | WARNING | [MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
-[MISSAO:K7Q2M9][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
 === TESTE IDOR (ISOLAMENTO MULTIEMPRESA) | MISSAO: K7Q2M9 ===
 
 --- CENÁRIOS DE TENTATIVAS DE ATAQUE IDOR ---
