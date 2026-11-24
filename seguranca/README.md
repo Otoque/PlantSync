@@ -1,12 +1,18 @@
 # Entrega de segurança — PlantSync
 
-> **Entrega pendente de dados oficiais:** substituir `PREENCHER` pelo código de missão confirmado pelo professor e preencher o roster com nome e GitHub de cada integrante. Não usar o código de exemplos antigos como confirmação.
+> Os nomes e o código da missão foram informados pela equipe. Handles pessoais ausentes no histórico Git estão marcados para confirmação; não foram inferidos.
 
 ## Identificação
 
-- Equipe: **PREENCHER nomes e usuários GitHub de todos os integrantes**
-- Professor(a): **PREENCHER**
-- Código oficial da missão: **PREENCHER**
+- Equipe:
+  - Davi Clemente — [@cldavii](https://github.com/cldavii)
+  - Nicolas Tavares — perfil GitHub individual a confirmar (o repositório é da organização [Otoque](https://github.com/Otoque))
+  - Pedro Valença — [@pedrohmvalenca](https://github.com/pedrohmvalenca)
+  - Jorge Figueiredo — perfil GitHub a informar
+  - Ygor Sampaio — perfil GitHub a informar
+- Professor: Ronierison Maciel
+- Código oficial da missão: `CP5TN0`
+- Repositório: [github.com/Otoque/PlantSync](https://github.com/Otoque/PlantSync)
 - Branch avaliada: `masterv2`
 
 ## Sistema e arquitetura
@@ -48,20 +54,20 @@ Em outro terminal, ative o mesmo ambiente e execute:
 cd back_end
 source .venv/bin/activate
 export PLANTSYNC_API_URL=http://127.0.0.1:8000
-export PLANTSYNC_CODIGO_MISSAO='CODIGO_OFICIAL'
-python seguranca/testes/test_2fa_otp.py 2>&1 | tee seguranca/evidencias/teste_2fa_CODIGO_OFICIAL.txt
-python seguranca/testes/test_idor.py 2>&1 | tee seguranca/evidencias/teste_idor_CODIGO_OFICIAL.txt
+export PLANTSYNC_CODIGO_MISSAO='CP5TN0'
+python seguranca/testes/test_2fa_otp.py 2>&1 | tee seguranca/evidencias/teste_2fa_CP5TN0.txt
+python seguranca/testes/test_idor.py 2>&1 | tee seguranca/evidencias/teste_idor_CP5TN0.txt
 ```
 
-Troque `CODIGO_OFICIAL` pelo valor confirmado antes de executar e renomeie os arquivos de evidência com o mesmo código. Revise a saída e remova tokens, códigos TOTP e dados pessoais antes de versionar.
+O código oficial `CP5TN0` já está configurado nos comandos. Confira os resultados, mantenha o código nos nomes dos arquivos e remova tokens, códigos TOTP e dados pessoais antes de versionar.
 
 ## Evidências e itens para concluir
 
-Os arquivos de evidência automatizada existentes precisam ser reexecutados na versão final e revisados; não os trate como prova atual sem verificar a execução. Grave também os vídeos requeridos (cada um com até 90 segundos), mostrando o fluxo real na placa/dispositivo e o teste de cada controle. Nomeie os vídeos com o código oficial. Não simule placa nem invente resultados: documente no vídeo qualquer limitação do ambiente.
+As evidências antigas disponíveis estão nomeadas com outro código de missão; reexecute os testes com `CP5TN0` e substitua-as. Não as trate como prova atual sem verificar a execução. Grave também os vídeos requeridos (cada um com até 90 segundos), mostrando o fluxo real na placa/dispositivo e o teste de cada controle. Nomeie os vídeos com o código oficial. Não simule placa nem invente resultados: documente no vídeo qualquer limitação do ambiente.
 
 Antes da entrega:
 
-1. preencher equipe, GitHub, professor e código oficial;
+1. confirmar os perfis GitHub individuais ainda não informados;
 2. executar os dois testes e substituir as evidências por saídas reais sem segredos;
 3. gravar e incluir os vídeos curtos de demonstração;
 4. conferir histórico Git e rotacionar credenciais/chaves que já tenham sido publicadas;
