@@ -193,6 +193,7 @@ def reservar_tentativa_login(sessao, origem, usuario):
         permitido = quantidade_tentativas(sessao, f"usuario:{usuario.casefold()}", janela, LIMITE_LOGIN_USUARIO)
     sessao.commit()
     if not permitido:
+        log_security_block("RATE_LIMIT", "excesso_de_tentativas_de_login", user_id=usuario, resource_id=origem)
         espera = JANELA_LOGIN_SEGUNDOS - int(instante) % JANELA_LOGIN_SEGUNDOS
         raise HTTPException(429, "Muitas tentativas. Aguarde antes de tentar novamente.", headers={"Retry-After": str(espera)})
 
@@ -227,8 +228,10 @@ def fazer_login(sessao, usuario, senha, origem, otp_code=None, recovery_code=Non
     conta = sessao.scalar(select(Conta).where(identidade_de_login(usuario)))
     if conta is None:
         autenticacao.calcular_hash_da_senha(senha, autenticacao.SAL_DE_USUARIO_INEXISTENTE)
+        log_security_block("AUTH", "credenciais_invalidas", user_id=usuario, resource_id=origem)
         raise erro_autenticacao(autenticacao.MENSAGEM_LOGIN_INVALIDO)
     if not autenticacao.senha_confere(senha, conta) or not conta.ativo:
+        log_security_block("AUTH", "credenciais_invalidas", user_id=conta.id, resource_id=origem)
         raise erro_autenticacao(autenticacao.MENSAGEM_LOGIN_INVALIDO)
 
     hash_validado = conta.senha_hash
@@ -307,7 +310,10 @@ def trocar_senha(sessao, credenciais, senha_atual, nova_senha):
     conta = bloquear_conta(sessao, conta.id)
     sessao_autenticada(sessao, credenciais)
     if not autenticacao.senha_confere(senha_atual, conta):
+        log_security_block("AUTH", "senha_atual_incorreta_na_troca", user_id=conta.id)
         raise erro_autenticacao(autenticacao.MENSAGEM_LOGIN_INVALIDO)
+    if nova_senha == senha_atual:
+        raise HTTPException(400, "A nova senha precisa ser diferente da atual.")
     configurar_senha(conta, nova_senha)
     sessao.execute(delete(SessaoConta).where(SessaoConta.conta_id == conta.id))
     sessao.commit()
