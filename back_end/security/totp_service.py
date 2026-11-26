@@ -123,6 +123,17 @@ def confirm_user_2fa(sessao: Session, conta: Conta, otp_code: str) -> tuple[bool
     return True, "ok"
 
 
+def disable_user_2fa(sessao: Session, conta: Conta) -> None:
+    """Desliga o 2FA e apaga segredo e codigos de recuperacao, que nao podem sobrar validos."""
+    conta.totp_enabled = False
+    conta.totp_secret_encrypted = None
+    conta.totp_last_timestep = None
+    sessao.execute(
+        delete(CodigoRecuperacaoConta).where(CodigoRecuperacaoConta.conta_id == conta.id)
+    )
+    sessao.commit()
+
+
 def verify_and_consume_recovery_code(
     sessao: Session, conta: Conta, plain_code: str
 ) -> tuple[bool, str]:
