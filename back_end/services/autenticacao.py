@@ -114,7 +114,10 @@ def conferir_token(sessao, token):
 
 
 def encerrar_token_de_acesso(sessao, token):
+    # Dois logouts ao mesmo tempo: o segundo nao encontra a linha e nao deve dar erro 500.
     linha = sessao.get(TokenDeAcesso, hash_do_token(token))
+    if linha is None:
+        return
     sessao.delete(linha)
     sessao.commit()
 
