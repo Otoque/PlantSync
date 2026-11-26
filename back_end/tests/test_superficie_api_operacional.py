@@ -7,6 +7,8 @@ from app import app
 
 ROTAS_PUBLICAS = {
     ("POST", "/api/v1/login"),
+    # Segunda etapa do login: quem chama ainda nao tem sessao, so o mfa_token.
+    ("POST", "/api/v1/2fa/verify-login"),
     ("POST", "/api/v1/convites/aceitar"),
     ("GET", "/api/v1/publico/{codigo}"),
     ("GET", "/api/v1/laudos/{token}"),
