@@ -151,10 +151,8 @@ def desativar_2fa(
     conta: Conta = Depends(acessos.obter_conta),
     sessao: Session = Depends(abrir_sessao),
 ):
-    conta.totp_enabled = False
-    conta.totp_secret_encrypted = None
-    conta.totp_last_timestep = None
-    sessao.commit()
+    totp_service.disable_user_2fa(sessao, conta)
+    log_security_block("2FA", "2fa_desativado_pelo_usuario", user_id=conta.id)
     return {"status": "2FA desativado com sucesso"}
 
 
