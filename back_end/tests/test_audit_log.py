@@ -41,3 +41,19 @@ def test_bloqueio_e_registrado_com_controle_motivo_e_ids(monkeypatch, caplog, ca
 def test_bloqueio_sem_ids_registra_none(caplog, capsys):
     audit_log.log_security_block("2FA", "codigo_invalido")
     assert "user_id=None | resource_id=None" in capsys.readouterr().err
+
+
+def test_quebra_de_linha_nao_cria_linha_falsa_no_log(capsys):
+    audit_log.log_security_block("AUTH", "credenciais_invalidas", user_id="admin\n[BLOQUEIO] forjado")
+    saida = capsys.readouterr().err
+    assert saida.count("\n") == 1
+    assert "user_id=admin?[BLOQUEIO] forjado" in saida
+
+
+def test_janela_do_totp_invalida_ou_grande_demais_e_limitada(monkeypatch):
+    monkeypatch.setenv("PLANTSYNC_TOTP_WINDOW", "abc")
+    assert audit_log.get_totp_window() == 1
+    monkeypatch.setenv("PLANTSYNC_TOTP_WINDOW", "50")
+    assert audit_log.get_totp_window() == 2
+    monkeypatch.setenv("PLANTSYNC_TOTP_WINDOW", "-3")
+    assert audit_log.get_totp_window() == 0
