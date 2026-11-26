@@ -12,7 +12,12 @@ def validar_posse(
     user_id: int | str | None = None,
     status_code: int = status.HTTP_404_NOT_FOUND,
 ) -> None:
-    if recurso_empresa_id != empresa_id_contexto:
+    # None == None passaria na comparacao: empresa desconhecida tambem e negada.
+    if (
+        recurso_empresa_id is None
+        or empresa_id_contexto is None
+        or recurso_empresa_id != empresa_id_contexto
+    ):
         log_security_block(
             control="IDOR",
             reason=f"tentativa_acesso_{tipo_recurso}_alheio",
