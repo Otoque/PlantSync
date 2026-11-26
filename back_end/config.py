@@ -55,5 +55,9 @@ CORS_ORIGENS = separar_origens(os.getenv(
 # Controles de Seguranca: Codigo de Missao, 2FA (TOTP) e URL da API
 PLANTSYNC_CODIGO_MISSAO = os.getenv("PLANTSYNC_CODIGO_MISSAO", "XXXXXX")
 PLANTSYNC_TOTP_KEY = os.getenv("PLANTSYNC_TOTP_KEY", "")
-PLANTSYNC_TOTP_WINDOW = int(os.getenv("PLANTSYNC_TOTP_WINDOW", "1"))
+# Mesma regra de security/audit_log.py: valor invalido vira 1 e o maximo e 2.
+try:
+    PLANTSYNC_TOTP_WINDOW = max(0, min(int(os.getenv("PLANTSYNC_TOTP_WINDOW", "1")), 2))
+except ValueError:
+    PLANTSYNC_TOTP_WINDOW = 1
 PLANTSYNC_API_URL = os.getenv("PLANTSYNC_API_URL", "http://localhost:8000")
