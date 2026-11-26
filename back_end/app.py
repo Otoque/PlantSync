@@ -130,6 +130,9 @@ async def proteger_historico_convertido(request: Request, call_next):
             "integracao_restrita integracao_id=%d empresa_id=%d metodo=%s rota=%s status=%d",
             integracao_id, empresa_id, request.method, rota, resposta.status_code,
         )
+    # A API so devolve JSON: o navegador nao deve adivinhar o tipo nem abrir em iframe.
+    resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resposta.headers.setdefault("X-Frame-Options", "DENY")
     if caminho.startswith(("/api/v1/", "/api/laudos/")):
         resposta.headers["Cache-Control"] = "no-store"
         resposta.headers["Referrer-Policy"] = "no-referrer"
