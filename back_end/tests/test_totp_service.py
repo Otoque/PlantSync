@@ -126,6 +126,16 @@ def test_gerar_novos_codigos_invalida_os_antigos(sessao, conta):
     assert (ok, motivo) == (False, "codigo_recuperacao_invalido")
 
 
+def test_desativar_2fa_apaga_segredo_e_codigos_de_recuperacao(sessao, conta):
+    gerador, resultado = configurar_2fa(sessao, conta)
+    totp.confirm_user_2fa(sessao, conta, gerador.now())
+    totp.disable_user_2fa(sessao, conta)
+    assert conta.totp_enabled is False
+    assert conta.totp_secret_encrypted is None
+    ok, motivo = totp.verify_and_consume_recovery_code(sessao, conta, resultado["recovery_codes"][0])
+    assert (ok, motivo) == (False, "codigo_recuperacao_invalido")
+
+
 def test_token_mfa_e_consumido_uma_unica_vez(sessao, conta):
     token = totp.criar_mfa_token(sessao, conta)
     assert token.startswith(totp.PREFIXO_MFA)
