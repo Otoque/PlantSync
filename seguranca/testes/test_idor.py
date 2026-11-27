@@ -118,11 +118,17 @@ def headers(token: str, empresa_id: int) -> dict[str, str]:
     }
 
 
-def run_tests():
+def validar_codigo_missao():
     if not re.fullmatch(r"[A-Z0-9]{6}", MISSION_CODE) or MISSION_CODE == "PENDENTE":
         raise SystemExit("Defina PLANTSYNC_CODIGO_MISSAO com o código oficial de 6 caracteres antes de executar.")
-    print(f"=== TESTE IDOR (ISOLAMENTO MULTIEMPRESA) | MISSAO: {MISSION_CODE} ===")
 
+
+def preparar_cenario():
+    """Faz login dos dois usuários e cria os recursos de cada empresa.
+
+    Usado também por test_idor_antes.py, para que o ANTES e o DEPOIS rodem
+    exatamente os mesmos cenários.
+    """
     empresa_a_id, empresa_b_id = preparar_ambiente_e_empresas()
 
     # Login Usuário A
@@ -215,75 +221,96 @@ def run_tests():
         },
     )
 
+    return {
+        "empresa_b_id": empresa_b_id,
+        "token_user_a": token_user_a,
+        "h_user_a": h_user_a,
+        "h_user_b": h_user_b,
+        "amb_a_id": amb_a_id,
+        "sensor_b_id": sensor_b_id,
+        "codigo_lote_a": codigo_lote_a,
+        "codigo_lote_b": codigo_lote_b,
+    }
+
+
+def cenarios_ataque(c):
+    """Tentativas de acesso cruzado do User A (Empresa A) contra recursos da Empresa B.
+
+    Cada item: (rótulo, códigos que significam bloqueio, mensagem de falha, requisição).
+    """
+    lote_b = c["codigo_lote_b"]
+    h_a = c["h_user_a"]
+    return [
+        # 1. Usuário A tenta LER recurso (Lote) da Empresa B
+        (f"[1] User A -> GET /api/v1/lotes/{lote_b} (esperado: 403/404)", (403, 404),
+         "IDOR falhou na leitura",
+         lambda: http.get(f"{BASE_URL}/api/v1/lotes/{lote_b}", headers=h_a)),
+        # 2. Usuário A tenta ALTERAR configuração/dados do recurso da Empresa B
+        (f"[2] User A -> PATCH /api/v1/lotes/{lote_b} (esperado: 403/404)", (403, 404),
+         "IDOR falhou na alteração",
+         lambda: http.patch(f"{BASE_URL}/api/v1/lotes/{lote_b}", headers=h_a,
+                            json={"variety": "VariedadeInvasora"})),
+        # 3. Usuário A tenta ENVIAR COMANDO operacional para o recurso da Empresa B
+        (f"[3] User A -> POST /api/v1/lotes/{lote_b}/preparar (esperado: 403/404)", (403, 404),
+         "IDOR falhou no comando",
+         lambda: http.post(f"{BASE_URL}/api/v1/lotes/{lote_b}/preparar", headers=h_a,
+                           json={"environmentId": c["amb_a_id"]})),
+        # 4. Usuário A tenta VINCULAR sensor pertencente à Empresa B
+        (f"[4] User A -> POST /api/v1/sensores/{c['sensor_b_id']}/vincular (esperado: 403/404)", (403, 404),
+         "IDOR falhou no sensor",
+         lambda: http.post(f"{BASE_URL}/api/v1/sensores/{c['sensor_b_id']}/vincular", headers=h_a,
+                           json={"environmentId": c["amb_a_id"]})),
+        # 5. Tentativa de contorno: enviar spoofing de empresa_id ou owner_id no payload
+        ("[5] Contorno - spoofing de empresa_id no payload (esperado: 400/403/404/422)", (400, 403, 404, 422),
+         "Spoofing aceito indevidamente",
+         lambda: http.patch(f"{BASE_URL}/api/v1/lotes/{lote_b}", headers=h_a,
+                            json={"variety": "Spoof", "empresa_id": c["empresa_b_id"]})),
+        # 6. Tentativa de contorno: forjar cabeçalho X-Empresa-ID para empresa de terceiros sem vínculo
+        ("[6] Contorno - X-Empresa-ID forjado para outra empresa (esperado: 403)", (403,),
+         "Acesso indevido via header forjado",
+         lambda: http.get(f"{BASE_URL}/api/v1/contexto",
+                          headers={"Authorization": f"Bearer {c['token_user_a']}",
+                                   "X-Empresa-ID": str(c["empresa_b_id"])})),
+    ]
+
+
+def cenarios_legitimos(c):
+    """Operações dos titulares, que devem continuar funcionando com o controle ativo."""
+    lote_a, lote_b = c["codigo_lote_a"], c["codigo_lote_b"]
+    return [
+        # 7. Dono legítimo (User B) acessa o próprio lote normalmente
+        (f"[7] Dono (User B) -> GET /api/v1/lotes/{lote_b} (esperado: 200)", (200,),
+         "Dono legítimo B bloqueado indevidamente",
+         lambda: http.get(f"{BASE_URL}/api/v1/lotes/{lote_b}", headers=c["h_user_b"])),
+        # 8. Dono legítimo (User A) acessa o próprio lote normalmente
+        (f"[8] Dono (User A) -> GET /api/v1/lotes/{lote_a} (esperado: 200)", (200,),
+         "Dono legítimo A bloqueado indevidamente",
+         lambda: http.get(f"{BASE_URL}/api/v1/lotes/{lote_a}", headers=c["h_user_a"])),
+        # 9. Dono legítimo (User B) altera o próprio lote normalmente
+        (f"[9] Dono (User B) -> PATCH /api/v1/lotes/{lote_b} (esperado: 200)", (200,),
+         "Dono B falhou ao alterar",
+         lambda: http.patch(f"{BASE_URL}/api/v1/lotes/{lote_b}", headers=c["h_user_b"],
+                            json={"variety": "Palmer Atualizada"})),
+    ]
+
+
+def executar_e_conferir(cenarios):
+    for rotulo, esperados, falha, requisicao in cenarios:
+        resposta = requisicao()
+        print(f"{rotulo} -> {resposta.status_code}")
+        assert resposta.status_code in esperados, f"{falha}: {resposta.status_code} {resposta.text}"
+
+
+def run_tests():
+    validar_codigo_missao()
+    print(f"=== TESTE IDOR (ISOLAMENTO MULTIEMPRESA) | MISSAO: {MISSION_CODE} ===")
+    cenario = preparar_cenario()
+
     print("\n--- CENÁRIOS DE TENTATIVAS DE ATAQUE IDOR ---")
-
-    # 1. Usuário A tenta LER recurso (Lote) da Empresa B
-    r_read = http.get(f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}", headers=h_user_a)
-    print(f"[1] User A -> GET /api/v1/lotes/{codigo_lote_b} (esperado: 403/404) -> {r_read.status_code}")
-    assert r_read.status_code in (403, 404), f"IDOR falhou na leitura: {r_read.status_code}"
-
-    # 2. Usuário A tenta ALTERAR configuração/dados do recurso da Empresa B
-    r_patch = http.patch(
-        f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}",
-        headers=h_user_a,
-        json={"variety": "VariedadeInvasora"},
-    )
-    print(f"[2] User A -> PATCH /api/v1/lotes/{codigo_lote_b} (esperado: 403/404) -> {r_patch.status_code}")
-    assert r_patch.status_code in (403, 404), f"IDOR falhou na alteração: {r_patch.status_code}"
-
-    # 3. Usuário A tenta ENVIAR COMANDO operacional para o recurso da Empresa B
-    r_cmd = http.post(
-        f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}/preparar",
-        headers=h_user_a,
-        json={"environmentId": amb_a_id},
-    )
-    print(f"[3] User A -> POST /api/v1/lotes/{codigo_lote_b}/preparar (esperado: 403/404) -> {r_cmd.status_code}")
-    assert r_cmd.status_code in (403, 404), f"IDOR falhou no comando: {r_cmd.status_code}"
-
-    # 4. Usuário A tenta VINCULAR sensor pertencente à Empresa B
-    r_sensor_idor = http.post(
-        f"{BASE_URL}/api/v1/sensores/{sensor_b_id}/vincular",
-        headers=h_user_a,
-        json={"environmentId": amb_a_id},
-    )
-    print(f"[4] User A -> POST /api/v1/sensores/{sensor_b_id}/vincular (esperado: 403/404) -> {r_sensor_idor.status_code}")
-    assert r_sensor_idor.status_code in (403, 404), f"IDOR falhou no sensor: {r_sensor_idor.status_code}"
-
-    # 5. Tentativa de contorno: enviar spoofing de empresa_id ou owner_id no payload
-    r_spoof = http.patch(
-        f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}",
-        headers=h_user_a,
-        json={"variety": "Spoof", "empresa_id": empresa_b_id},
-    )
-    print(f"[5] Contorno - spoofing de empresa_id no payload (esperado: 400/403/404/422) -> {r_spoof.status_code}")
-    assert r_spoof.status_code in (400, 403, 404, 422), f"Spoofing aceito indevidamente: {r_spoof.status_code}"
-
-    # 6. Tentativa de contorno: forjar cabeçalho X-Empresa-ID para empresa de terceiros sem vínculo
-    h_spoof_header = {"Authorization": f"Bearer {token_user_a}", "X-Empresa-ID": str(empresa_b_id)}
-    r_spoof_header = http.get(f"{BASE_URL}/api/v1/contexto", headers=h_spoof_header)
-    print(f"[6] Contorno - X-Empresa-ID forjado para outra empresa (esperado: 403) -> {r_spoof_header.status_code}")
-    assert r_spoof_header.status_code == 403, f"Acesso indevido via header forjado: {r_spoof_header.status_code}"
+    executar_e_conferir(cenarios_ataque(cenario))
 
     print("\n--- CENÁRIOS DE OPERAÇÃO LEGÍTIMA PELOS DONOS ---")
-
-    # 7. Dono legítimo (User B) acessa o próprio lote normalmente
-    r_owner_b = http.get(f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}", headers=h_user_b)
-    print(f"[7] Dono (User B) -> GET /api/v1/lotes/{codigo_lote_b} (esperado: 200) -> {r_owner_b.status_code}")
-    assert r_owner_b.status_code == 200, f"Dono legítimo B bloqueado indevidamente: {r_owner_b.text}"
-
-    # 8. Dono legítimo (User A) acessa o próprio lote normalmente
-    r_own_a = http.get(f"{BASE_URL}/api/v1/lotes/{codigo_lote_a}", headers=h_user_a)
-    print(f"[8] Dono (User A) -> GET /api/v1/lotes/{codigo_lote_a} (esperado: 200) -> {r_own_a.status_code}")
-    assert r_own_a.status_code == 200, f"Dono legítimo A bloqueado indevidamente: {r_own_a.text}"
-
-    # 9. Dono legítimo (User B) altera o próprio lote normalmente
-    r_patch_b = http.patch(
-        f"{BASE_URL}/api/v1/lotes/{codigo_lote_b}",
-        headers=h_user_b,
-        json={"variety": "Palmer Atualizada"},
-    )
-    print(f"[9] Dono (User B) -> PATCH /api/v1/lotes/{codigo_lote_b} (esperado: 200) -> {r_patch_b.status_code}")
-    assert r_patch_b.status_code == 200, f"Dono B falhou ao alterar: {r_patch_b.text}"
+    executar_e_conferir(cenarios_legitimos(cenario))
 
     print("\n=== TODOS OS TESTES DE IDOR PASSARAM COM SUCESSO! ===")
 
