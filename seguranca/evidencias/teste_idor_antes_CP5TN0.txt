@@ -1,0 +1,31 @@
+# Evidência ANTES do controle de IDOR | MISSAO: CP5TN0
+# Execução: 2026-11-26 22:44, API local (127.0.0.1) com banco isolado plantsync_teste.db e dados sintéticos.
+# A checagem de posse/empresa foi desativada por um patch LOCAL e TEMPORÁRIO, revertido logo após
+# esta captura e nunca versionado (ver seguranca/README.md, seção Execução).
+# Comando: python seguranca/testes/test_idor_antes.py
+
+=== TESTE IDOR - ANTES DO CONTROLE (checagem de posse desativada) | MISSAO: CP5TN0 ===
+'esperado' indica a resposta correta com o controle ativo.
+
+--- CENÁRIOS DE TENTATIVAS DE ATAQUE IDOR ---
+[1] User A -> GET /api/v1/lotes/PS-BETA99 (esperado: 403/404) -> 200 | ACEITO (vulnerável)
+    resposta: {"id":"PS-BETA99","legacy":false,"fruit":"Manga","fruitId":"manga","variety":"Tommy Atkins","client":"Cliente Beta","destination":"Porto de Suape","destinati...
+[2] User A -> PATCH /api/v1/lotes/PS-BETA99 (esperado: 403/404) -> 200 | ACEITO (vulnerável)
+    resposta: {"id":"PS-BETA99","legacy":false,"fruit":"Manga","fruitId":"manga","variety":"VariedadeInvasora","client":"Cliente Beta","destination":"Porto de Suape","dest...
+[3] User A -> POST /api/v1/lotes/PS-BETA99/preparar (esperado: 403/404) -> 200 | ACEITO (vulnerável)
+    resposta: {"id":"PS-BETA99","legacy":false,"fruit":"Manga","fruitId":"manga","variety":"VariedadeInvasora","client":"Cliente Beta","destination":"Porto de Suape","dest...
+[4] User A -> POST /api/v1/sensores/1/vincular (esperado: 403/404) -> 200 | ACEITO (vulnerável)
+    resposta: {"id":1,"name":"Sensor Beta 99","type":"thingspeak","channel":998811,"environmentId":2,"latestAt":null}
+[5] Contorno - spoofing de empresa_id no payload (esperado: 400/403/404/422) -> 400 | BLOQUEADO
+[6] Contorno - X-Empresa-ID forjado para outra empresa (esperado: 403) -> 200 | ACEITO (vulnerável)
+    resposta: {"usuario":{"id":1,"nome":"operador_alpha_idor","plataforma":false},"empresa":{"id":2,"nome":"Empresa Beta Logistica","papel":"administrador","permissoes":["...
+
+--- CENÁRIOS DE OPERAÇÃO LEGÍTIMA PELOS DONOS ---
+[7] Dono (User B) -> GET /api/v1/lotes/PS-BETA99 (esperado: 200) -> 200
+[8] Dono (User A) -> GET /api/v1/lotes/PS-ALPH99 (esperado: 200) -> 200
+[9] Dono (User B) -> PATCH /api/v1/lotes/PS-BETA99 (esperado: 200) -> 200
+
+=== RESULTADO ANTES: 5 de 6 tentativas cruzadas foram ACEITAS ===
+
+--- Log da API durante o teste (linhas [MISSAO:...][BLOQUEIO]) ---
+(nenhum bloqueio registrado: sem o controle, a API não detecta nem bloqueia o acesso cruzado)
