@@ -1,13 +1,8 @@
-2026-11-24 14:30:56,586 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:30:56,590 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:30:56,594 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=3 | resource_id=PS-BETA99
-2026-11-24 14:30:56,597 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
-[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=3 | resource_id=1
-2026-11-24 14:30:56,603 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
-[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=3 | resource_id=3
+# Evidência DEPOIS do controle de IDOR | MISSAO: CP5TN0
+# Execução: 2026-11-26 22:45, mesma rodada do ANTES (teste_idor_antes_CP5TN0.txt), com o código original da main
+# (controle ativo), API local (127.0.0.1), banco isolado plantsync_teste.db recriado e dados sintéticos.
+# Comando: python seguranca/testes/test_idor.py
+
 === TESTE IDOR (ISOLAMENTO MULTIEMPRESA) | MISSAO: CP5TN0 ===
 
 --- CENÁRIOS DE TENTATIVAS DE ATAQUE IDOR ---
@@ -24,3 +19,15 @@
 [9] Dono (User B) -> PATCH /api/v1/lotes/PS-BETA99 (esperado: 200) -> 200
 
 === TODOS OS TESTES DE IDOR PASSARAM COM SUCESSO! ===
+
+--- Log da API durante o teste (linhas [MISSAO:...][BLOQUEIO]) ---
+2026-11-26 22:45:13,054 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+2026-11-26 22:45:13,064 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+2026-11-26 22:45:13,080 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_lote_alheio_ou_inexistente | user_id=1 | resource_id=PS-BETA99
+2026-11-26 22:45:13,099 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=1 | resource_id=1
+[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_sensor_alheio_ou_inexistente | user_id=1 | resource_id=1
+2026-11-26 22:45:13,166 | WARNING | [MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=1 | resource_id=2
+[MISSAO:CP5TN0][BLOQUEIO][IDOR] motivo=tentativa_acesso_empresa_sem_vinculo | user_id=1 | resource_id=2
