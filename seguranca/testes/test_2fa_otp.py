@@ -11,6 +11,10 @@ import re
 
 BASE_URL = os.getenv("PLANTSYNC_API_URL", "http://localhost:8000")
 MISSION_CODE = os.getenv("PLANTSYNC_CODIGO_MISSAO", "PENDENTE")
+# Os módulos da API (models/, services/) ficam em <raiz>/back_end/; assim o
+# script roda de qualquer diretório, sem PYTHONPATH manual.
+PASTA_BACKEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "back_end"))
+
 
 # Usuário de teste exclusivo para 2FA
 TEST_USER = "operador_2fa_teste"
@@ -44,7 +48,7 @@ http = HttpClient(BASE_URL)
 
 def preparar_usuario_teste():
     """Garante a existência do usuário de teste associado a uma empresa ativa."""
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+    sys.path.insert(0, PASTA_BACKEND)
     from models.banco import SessaoLocal
     from models.contas import Conta, Empresa, VinculoConta
     from services.acessos import configurar_senha

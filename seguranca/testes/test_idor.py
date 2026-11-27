@@ -10,6 +10,10 @@ import re
 
 BASE_URL = os.getenv("PLANTSYNC_API_URL", "http://localhost:8000")
 MISSION_CODE = os.getenv("PLANTSYNC_CODIGO_MISSAO", "PENDENTE")
+# Os módulos da API (models/, services/) ficam em <raiz>/back_end/; assim o
+# script roda de qualquer diretório, sem PYTHONPATH manual.
+PASTA_BACKEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "back_end"))
+
 
 USER_A_NAME = "operador_alpha_idor"
 USER_A_PASS = "SenhaAlpha#123456"
@@ -48,7 +52,7 @@ http = HttpClient(BASE_URL)
 
 
 def get_db():
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+    sys.path.insert(0, PASTA_BACKEND)
     from models.banco import SessaoLocal
     from models.contas import Conta, Empresa, VinculoConta
     from models.operacao import Ambiente, FonteSensor, LoteOperacional
